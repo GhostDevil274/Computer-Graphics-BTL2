@@ -1,0 +1,6 @@
+PyOpenGL 
+glfw 
+imgui 
+Pillow 
+numpy
+opencv-python
