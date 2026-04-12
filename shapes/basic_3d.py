@@ -285,65 +285,73 @@ class MathSurface(BaseShape):
         
         
 "Mô hình 3D được nhập từ file .obj hoặc .ply."
-class ObjModel:
+class ObjModel(BaseShape):
     def __init__(self, filepath):
-        self.vertices = []
-        self.tex_coords = []
-        self.normals = []
-        self.indices = []
+        vertices, indices, colors, uvs = [], [], [], []
+        materials = {"default": [0.8, 0.8, 0.8]} 
+        current_mtl = "default"
         
-        self.mtl_file = None
-        self.texture_file = None
-        self.diffuse_color = None
+        # 1. ĐỌC FILE .MTL (Nếu có)
+        mtl_filepath = filepath.replace('.obj', '.mtl')
+        if os.path.exists(mtl_filepath):
+            with open(mtl_filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                active_mat = None
+                for line in f:
+                    parts = line.strip().split()
+                    if not parts or line.startswith('#'): continue
+                    if parts[0] == 'newmtl':
+                        active_mat = parts[1]
+                    elif parts[0] == 'Kd' and active_mat:
+                        materials[active_mat] = [float(parts[1]), float(parts[2]), float(parts[3])]
+        else:
+            print(f"[CẢNH BÁO] Không tìm thấy file {os.path.basename(mtl_filepath)}")
+
+        # 2. ĐỌC FILE .OBJ (GIỮ NGUYÊN TỌA ĐỘ GỐC)
+        v_temp, vt_temp = [], []
+        idx_map = {}
+        next_idx = 0
         
+        if not os.path.exists(filepath):
+            print(f"[LỖI] Không tìm thấy file model: {filepath}")
+            super().__init__(np.array([[0,0,0]], 'f'), np.array([0], 'u4'), np.array([[1,0,0]], 'f'))
+            return
+
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
-                if line.startswith('v '):
-                    self.vertices.append([float(x) for x in line.strip().split()[1:]])
-                elif line.startswith('vt '):
-                    self.tex_coords.append([float(x) for x in line.strip().split()[1:3]])
-                elif line.startswith('vn '):
-                    self.normals.append([float(x) for x in line.strip().split()[1:]])
-                elif line.startswith('f '):
-                    face_data = [v.split('/') for v in line.strip().split()[1:]]
-                    if len(face_data) >= 3:
-                        for i in range(1, len(face_data) - 1):
-                            self.indices.append(face_data[0])
-                            self.indices.append(face_data[i])
-                            self.indices.append(face_data[i+1])
-                elif line.startswith('mtllib '):
-                    self.mtl_file = line.strip().split()[1]
-                    
-        if self.mtl_file:
-            self.parse_mtl(filepath)
-
-    def parse_mtl(self, obj_filepath):
-        base_dir = os.path.dirname(obj_filepath)  # Thư mục models/
-        assets_dir = os.path.dirname(base_dir)    # Thư mục assets/
-        
-        mtl_paths = [
-            os.path.join(base_dir, self.mtl_file),
-            os.path.join(assets_dir, "textures", self.mtl_file)
-        ]
-        
-        actual_mtl_path = None
-        for p in mtl_paths:
-            if os.path.exists(p):
-                actual_mtl_path = p
-                break
+                parts = line.strip().split()
+                if not parts or line.startswith('#'): continue
                 
-        if not actual_mtl_path: 
-            print(f"[CẢNH BÁO] Không tìm thấy file {self.mtl_file}")
-            return
-        
-        with open(actual_mtl_path, 'r', encoding='utf-8', errors='ignore') as f:
-            for line in f:
-                if line.startswith('map_Kd '):
-                    # Lấy tên file ảnh dán (VD: car_texture.jpg)
-                    tex_name = line.strip().split()[1]
-                    self.texture_file = os.path.basename(tex_name) # Lấy đúng tên file, gọt bỏ đường dẫn rác
-                elif line.startswith('Kd '):
-                    # Lấy màu sắc tĩnh điện
-                    parts = line.strip().split()
-                    if len(parts) >= 4:
-                        self.diffuse_color = [float(parts[1]), float(parts[2]), float(parts[3])]
+                if parts[0] == 'usemtl':
+                    current_mtl = parts[1] if parts[1] in materials else "default"
+                elif parts[0] == 'v':
+                    v_temp.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                elif parts[0] == 'vt':
+                    vt_temp.append([float(parts[1]), float(parts[2])])
+                elif parts[0] == 'f':
+                    face_verts = parts[1:]
+                    for i in range(1, len(face_verts) - 1):
+                        for vertex_def in [face_verts[0], face_verts[i], face_verts[i+1]]:
+                            v_data = vertex_def.split('/')
+                            v_idx = int(v_data[0]) - 1
+                            vt_idx = int(v_data[1]) - 1 if len(v_data) > 1 and v_data[1] else -1
+                            
+                            unique_key = f"{vertex_def}_{current_mtl}"
+                            if unique_key not in idx_map:
+                                # --- ĐÃ SỬA LỖI ZERO DIMENSION Ở ĐÂY (DÙNG APPEND) ---
+                                vertices.append(v_temp[v_idx])
+                                uvs.append(vt_temp[vt_idx] if vt_idx >= 0 else [0.0, 0.0])
+                                colors.append(materials[current_mtl])
+                                
+                                idx_map[unique_key] = next_idx
+                                next_idx += 1
+                            indices.append(idx_map[unique_key])
+                            
+        super().__init__(
+            np.array(vertices, dtype=np.float32), 
+            np.array(indices, dtype=np.uint32), 
+            np.array(colors, dtype=np.float32), 
+            uvs=np.array(uvs, dtype=np.float32) if uvs else None
+        )
+
+
+

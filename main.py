@@ -4,14 +4,16 @@ import imgui
 from imgui.integrations.glfw import GlfwRenderer
 import numpy as np
 import os
+import time
 import random
+import json
 from PIL import Image
 
-from btl2_loader import KenneyModel
 from gui import AppGUI
 from libs.shader import Shader
 from libs.transform import Trackball, scale, rotate_x, rotate_y, translate
 from shapes.basic_3d import ObjModel
+from libs.generator import save_frame, get_2d_bbox
 
 class SceneObject:
     def __init__(self, shape, name, class_id=0, class_name="Background"):
@@ -27,8 +29,10 @@ class SceneObject:
         self.rot_x, self.rot_y = 0.0, 0.0
         self.pos_x, self.pos_y, self.pos_z = 0.0, 0.0, 0.0
         
+        self.render_mode = 1 
+        self.flat_color = [0.8, 0.2, 0.3]
         self.texture_id = 0
-        self.texture_filepath = "texture.jpg"
+        self.texture_filepath = ""
 
 def load_texture(filepath):
     base_path = filepath if filepath.startswith("assets") else os.path.join("assets", "textures", filepath)
@@ -36,7 +40,6 @@ def load_texture(filepath):
     actual_path = next((p for p in possible_paths if os.path.exists(p)), None)
     
     if not actual_path: 
-        print(f"❌ [LỖI] KHÔNG TÌM THẤY ẢNH: {filepath}")
         return 0
         
     try:
@@ -52,7 +55,6 @@ def load_texture(filepath):
         GL.glGenerateMipmap(GL.GL_TEXTURE_2D)
         return tex_id
     except Exception as e: 
-        print(f"❌ [LỖI] File ảnh bị hỏng: {actual_path} - Lỗi: {e}")
         return 0
 
 def screen_to_world_ray(xpos, ypos, win_w, win_h, view_matrix, proj_matrix):
@@ -76,9 +78,10 @@ def main():
     
     monitor = glfw.get_primary_monitor()
     video_mode = glfw.get_video_mode(monitor)
-    win_w, win_h = int(video_mode.size.width * 0.9), int(video_mode.size.height * 0.9)
-    window = glfw.create_window(win_w, win_h, "CALAR Data Generator - Smart City", None, None)
+    win_w, win_h = int(video_mode.size.width * 1), int(video_mode.size.height * 1)
+    window = glfw.create_window(win_w, win_h, "Viewer", None, None)
     glfw.set_window_pos(window, int((video_mode.size.width - win_w)/2), int((video_mode.size.height - win_h)/2))
+    glfw.maximize_window(window)
 
     glfw.make_context_current(window)
     GL.glEnable(GL.GL_DEPTH_TEST)
@@ -113,28 +116,32 @@ def main():
         SceneObject.__init__ = _new_init
         SceneObject._patched = True
 
-    print("Đang quy hoạch Đại Đô Thị MỞ RỘNG QUY MÔ (Bản chuẩn: Giữ nhà, Xe thực tế, Đúng 3 Texture)...")
     car_tex = load_texture("car_tex.png")     
     road_tex = load_texture("road_tex.png")   
     building_tex = load_texture("building_tex.png") 
     
-    # Models
-    road_straight = KenneyModel(os.path.join("assets", "models", "road-straight.obj"))
-    road_cross = KenneyModel(os.path.join("assets", "models", "road-intersection.obj"))
+    road_straight = ObjModel(os.path.join("assets", "models", "road-straight.obj"))
+    road_cross = ObjModel(os.path.join("assets", "models", "road-intersection.obj"))
     
     car_files = ["sedan.obj", "police.obj", "taxi.obj", "suv.obj", "van.obj", "ambulance.obj", "firetruck.obj", "garbage-truck.obj", "truck.obj"]
     car_models = []
     for m in car_files:
         path = os.path.join("assets", "models", m)
         if os.path.exists(path):
-            mdl = KenneyModel(path)
+            mdl = ObjModel(path)
             mdl.filename = m 
             car_models.append(mdl)
             
     bldg_files = ["building-a.obj", "building-c.obj", "building-d.obj", "building-j.obj", "building-k.obj", "building-m.obj", "building-skyscraper-a.obj", "building-skyscraper-b.obj", "building-skyscraper-d.obj", "building-skyscraper-e.obj"]
-    building_models = [KenneyModel(os.path.join("assets", "models", m)) for m in bldg_files if os.path.exists(os.path.join("assets", "models", m))]
+    building_models = [ObjModel(os.path.join("assets", "models", m)) for m in bldg_files if os.path.exists(os.path.join("assets", "models", m))]
 
-    # --- A. ĐỊNH NGHĨA KHỐI CƠ BẢN (Khoảng trống 9x9) ---
+    prop_files = ["light-curved.obj", "light-square.obj", "sign-highway.obj", "sign-highway-detailed.obj"]
+    prop_models = []
+    for m in prop_files:
+        path = os.path.join("assets", "models", m)
+        if os.path.exists(path):
+            prop_models.append(ObjModel(path))
+
     base_block = [
         ['3', '2', '2', '2', '2', '2', '2', '2', '3'],
         ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
@@ -147,7 +154,6 @@ def main():
         ['3', '2', '2', '2', '2', '2', '2', '2', '3']
     ]
 
-    # --- B. NHÂN QUY MÔ LÊN GẤP 4 X 4 LẦN ---
     CITY_LAYOUT = []
     num_blocks_x, num_blocks_z = 4, 4
     for r_b in range(num_blocks_z):
@@ -159,8 +165,7 @@ def main():
     offset_x = grid_cols / 2.0 - 0.5
     offset_z = grid_rows / 2.0 - 0.5
 
-    open_space_tiles = [] 
-    road_tiles = []      
+    open_space_tiles, road_tiles = [], []      
     
     for row_idx, row in enumerate(CITY_LAYOUT):
         for col_idx, tile in enumerate(row):
@@ -173,28 +178,24 @@ def main():
                 road.texture_id = road_tex
                 scene_objects.append(road)
                 road_tiles.append((x_pos, z_pos, 'V'))
-
             elif tile == '2': 
                 road = SceneObject(road_straight, f"Road_H_{row_idx}_{col_idx}", 0, "Background")
                 road.pos_x, road.pos_z, road.rot_y, road.scale = x_pos, z_pos, 90.0, 1.3
                 road.texture_id = road_tex
                 scene_objects.append(road)
                 road_tiles.append((x_pos, z_pos, 'H'))
-
             elif tile == '3': 
                 road = SceneObject(road_cross, f"Cross_{row_idx}_{col_idx}", 0, "Background")
                 road.pos_x, road.pos_z, road.scale = x_pos, z_pos, 1.3
                 road.texture_id = road_tex
                 scene_objects.append(road)
                 road_tiles.append((x_pos, z_pos, 'C')) 
-
             elif tile == '.': 
                 open_space_tiles.append((x_pos, z_pos))
 
     def is_overlap(x1, z1, w1, h1, x2, z2, w2, h2):
         return (abs(x1 - x2) < (w1 + w2) / 2.0) and (abs(z1 - z2) < (h1 + h2) / 2.0)
 
-    # 1. Hàm tính thông số thực tế của xe
     def get_car_info(filename):
         if not filename: return 0.3, 0.8, 1.6 
         if "firetruck" in filename or "garbage-truck" in filename or "truck" in filename:
@@ -204,7 +205,6 @@ def main():
         else:
             return 0.30, 0.8, 1.6 
 
-    # 2. Hàm check va chạm giữa xe với xe
     def check_car_collision(new_x, new_z, new_w, new_h, new_rot, placed_cars):
         if new_rot in [90.0, -90.0]: new_w, new_h = new_h, new_w
         for pc in placed_cars:
@@ -214,15 +214,30 @@ def main():
                 return True
         return False
 
-    # 3. Hàm check va chạm giữa tòa nhà và mặt đường
-    def check_building_road_collision(bldg_x, bldg_z, bldg_scale, road_tiles_list, t_size):
-        b_w, b_h = 2.0 * bldg_scale, 2.0 * bldg_scale
-        for rx, rz, rtype in road_tiles_list:
-            if is_overlap(bldg_x, bldg_z, b_w, b_h, rx, rz, t_size, t_size):
-                return True
-        return False
+    for rx, rz, rdir in road_tiles:
+        if not prop_models: break
+        if random.random() > 0.20: continue 
+        
+        prop = SceneObject(random.choice(prop_models), "Street_Prop", 3, "Prop")
+        
+        prop.texture_id = car_tex 
+        
+        edge_offset = TILE_SIZE * 0.45 
+        if rdir == 'V':
+            prop.pos_x = rx + edge_offset * random.choice([1, -1])
+            prop.pos_z = rz + random.uniform(-0.3, 0.3)
+            prop.rot_y = 90.0 if prop.pos_x > rx else -90.0
+        elif rdir == 'H':
+            prop.pos_x = rx + random.uniform(-0.3, 0.3)
+            prop.pos_z = rz + edge_offset * random.choice([1, -1])
+            prop.rot_y = 0.0 if prop.pos_z > rz else 180.0
+        else:
+            prop.pos_x = rx + edge_offset
+            prop.pos_z = rz + edge_offset
+            prop.rot_y = 225.0
+            
+        scene_objects.append(prop)
 
-    print("Đang thả xe tấp nập với kích thước chuẩn...")
     num_cars_to_place = 100 
     placed_cars_data = [] 
     
@@ -233,7 +248,6 @@ def main():
         
         car_model = random.choice(car_models)
         car = SceneObject(car_model, f"Car_{i}", 1, "Car")
-        
         base_car_scale, base_w, base_h = get_car_info(getattr(car_model, 'filename', ''))
         car.scale = base_car_scale * random.uniform(0.95, 1.05) 
         car_w, car_h = base_w * car.scale, base_h * car.scale
@@ -253,47 +267,43 @@ def main():
             scene_objects.append(car)
             placed_cars_data.append({'x': car.pos_x, 'z': car.pos_z, 'w': car_w, 'h': car_h, 'rot': car.rot_y})
 
-    print("Đang xây dựng: Mỗi ô trống 1 tòa nhà (Check lấn đường)...")
+    print("Đang đúc nền móng tòa nhà...")
     for i, (tile_x, tile_z) in enumerate(open_space_tiles):
         if not building_models: break
-        
         bldg = SceneObject(random.choice(building_models), f"Bldg_{i}", 2, "Building")
         bldg.pos_x = tile_x + random.uniform(-0.1, 0.1) 
         bldg.pos_z = tile_z + random.uniform(-0.1, 0.1)
         bldg.rot_y = random.choice([0.0, 90.0, 180.0, -90.0])
         
         target_scale = random.uniform(1.8, 2.3)
-        while target_scale > 0.5:
-            if not check_building_road_collision(bldg.pos_x, bldg.pos_z, target_scale, road_tiles, TILE_SIZE):
-                break 
-            target_scale -= 0.15 
-            
-        bldg.scale = target_scale
-        bldg.texture_id = building_tex # TRẢ LẠI TEXTURE CHUẨN CỦA ÔNG
-        scene_objects.append(bldg)
+        b_w = 2.0 * target_scale
+        
+        overlap = False
+        for rx, rz, _ in road_tiles:
+            if is_overlap(bldg.pos_x, bldg.pos_z, b_w, b_w, rx, rz, TILE_SIZE, TILE_SIZE):
+                overlap = True; break
+        
+        if not overlap:
+            bldg.scale = target_scale
+            bldg.texture_id = building_tex
+            scene_objects.append(bldg)
 
     if len(car_models) > 0:
         ego_x = (0 - offset_x) * TILE_SIZE + 0.25 * TILE_SIZE
         ego_z = (5 - offset_z) * TILE_SIZE
-        
-        ego_model = car_models[0] # Lấy mẫu xe đầu tiên làm xe Dashcam
+        ego_model = car_models[0] 
         ego_car = SceneObject(ego_model, "Ego_Dashcam_Car", 1, "Car")
-        
         ego_base_scale, _, _ = get_car_info(getattr(ego_model, 'filename', ''))
         ego_car.scale = ego_base_scale
-        
         ego_car.pos_x, ego_car.pos_z, ego_car.rot_y = ego_x, ego_z, 180.0
         ego_car.texture_id = car_tex
         scene_objects.append(ego_car)
 
-    # Cameras (Điều chỉnh khoảng cách xa hơn để nhìn bản đồ khổng lồ)
     cameras = [Trackball(distance=10.0), Trackball(distance=40.0), Trackball(distance=25.0)]
     cameras[0].elevation, cameras[0].azimuth = 10.0, 0.0 
     cameras[1].elevation, cameras[1].azimuth = 80.0, 0.0 
     cameras[2].elevation, cameras[2].azimuth = 30.0, -45.0
-    
-    if len(car_models) > 0:
-        cameras[0].target = np.array([ego_x, 0.2, ego_z], dtype=np.float32)
+    if len(car_models) > 0: cameras[0].target = np.array([ego_x, 0.2, ego_z], dtype=np.float32)
 
     def on_mouse_click(win, button, action, mods):
         if imgui.get_io().want_capture_mouse: return
@@ -349,15 +359,38 @@ def main():
                 cameras[gui.selected_cam_idx].zoom(dy, glfw.get_window_size(win)[1])
     glfw.set_scroll_callback(window, on_scroll)
 
+    def render_scene(v_mat, p_mat, view_mode, shader):
+        """Hàm hỗ trợ vẽ toàn bộ cảnh theo 3 chế độ (RGB, Depth, Mask)"""
+        shader.use()
+        GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat)
+        GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "projection"), 1, GL.GL_TRUE, p_mat)
+        GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_depth_map"), 1 if view_mode == 1 else 0)
+        GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_mask_map"), 1 if view_mode == 2 else 0)
+        
+        for obj in scene_objects:
+            m_trans = translate(obj.pos_x, obj.pos_y, obj.pos_z)
+            m_rot = np.matmul(rotate_y(obj.rot_y), rotate_x(obj.rot_x))
+            m_scale = scale(obj.scale, obj.scale, obj.scale)
+            model_matrix = np.matmul(m_trans, np.matmul(m_rot, m_scale))
+            GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "model"), 1, GL.GL_TRUE, model_matrix)
+            
+            if view_mode == 2: # Mask Mode
+                GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 0)
+                GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "flat_color"), *obj.mask_color)
+            else: # RGB / Depth Mode
+                GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 4 if obj.texture_id > 0 else 3)
+                if obj.texture_id > 0 and view_mode == 0:
+                    GL.glActiveTexture(GL.GL_TEXTURE0)
+                    GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
+            obj.shape.draw()
+
     while not glfw.window_should_close(window):
         glfw.poll_events()
         impl.process_inputs()
 
-        if getattr(gui, 'texture_changed', False) and len(scene_objects) > 0:
-            target_obj = scene_objects[getattr(gui, 'target_tex_obj_idx', 0)]
-            if target_obj.texture_id > 0: GL.glDeleteTextures(1, [target_obj.texture_id])
-            target_obj.texture_id = load_texture(target_obj.texture_filepath)
-            gui.texture_changed = False
+        ww, wh = glfw.get_window_size(window)
+        current_cam = cameras[gui.selected_cam_idx]
+        v_mat, p_mat = current_cam.view_matrix(), current_cam.projection_matrix((ww, wh))
 
         if getattr(gui, 'delete_obj_requested', False) and len(scene_objects) > 0:
             scene_objects.pop(gui.selected_scene_obj_idx)
@@ -379,18 +412,77 @@ def main():
             new_shape = ObjModel(filepath=obj_path)
             obj = SceneObject(new_shape, f"#{len(scene_objects)+1} {gui.class_name}", gui.class_id, gui.class_name)
             
-            if hasattr(new_shape, 'texture_file') and new_shape.texture_file:
-                obj.texture_filepath = new_shape.texture_file
-                obj.texture_id = load_texture(new_shape.texture_file)
-                obj.render_mode = 4 
-            elif hasattr(new_shape, 'diffuse_color') and new_shape.diffuse_color:
-                obj.flat_color = new_shape.diffuse_color
-                obj.render_mode = 3 
+            kw_vehicles = ["car", "vehicle", "police", "taxi", "truck", "suv", "van", "ambulance", "firetruck", "sedan", "hatchback"]
+            kw_buildings = ["build", "bldg", "house", "tower", "skyscraper"]
+            kw_props = ["sign", "light"] 
             
-            obj.pos_x, obj.pos_y, obj.pos_z = gui.spawn_pos
+            is_vehicle = any(kw in gui.class_name.lower() or kw in gui.obj_filepath.lower() for kw in kw_vehicles)
+            is_building = any(kw in gui.class_name.lower() or kw in gui.obj_filepath.lower() for kw in kw_buildings)
+            is_prop = any(kw in gui.class_name.lower() or kw in gui.obj_filepath.lower() for kw in kw_props)
+
+            cam_target = cameras[gui.selected_cam_idx].target
+            spawn_x, spawn_y, spawn_z = cam_target[0], cam_target[1], cam_target[2]
+            
+            best_dist, best_road = float('inf'), None
+            for rx, rz, rdir in road_tiles:
+                d = (rx - spawn_x)**2 + (rz - spawn_z)**2
+                if d < best_dist:
+                    best_dist = d; best_road = (rx, rz, rdir)
+                    
+            if best_road and best_dist < 15.0: 
+                rx, rz, rdir = best_road
+                offset = 0.25 * TILE_SIZE
+                obj.pos_y = 0.0
+                
+                if is_vehicle:
+                    if rdir == 'V':
+                        obj.pos_x = rx + offset if spawn_x > rx else rx - offset
+                        obj.pos_z = spawn_z
+                        obj.rot_y = 0.0 if obj.pos_x > rx else 180.0
+                    elif rdir == 'H':
+                        obj.pos_x = spawn_x
+                        obj.pos_z = rz + offset if spawn_z > rz else rz - offset
+                        obj.rot_y = -90.0 if obj.pos_z > rz else 90.0
+                    else:
+                        obj.pos_x, obj.pos_z = rx, rz
+                        obj.rot_y = random.choice([0.0, 90.0, 180.0, -90.0])
+
+                    s_factor, bw, bh = get_car_info(os.path.basename(obj_path))
+                    cw, ch = bw * s_factor, bh * s_factor
+                    
+                    for _ in range(20): 
+                        collision = False
+                        for other in scene_objects:
+                            if other.class_id == 1: 
+                                ow, oh = 0.8 * other.scale, 2.0 * other.scale 
+                                if other.rot_y in [90.0, -90.0]: ow, oh = oh, ow
+                                test_cw, test_ch = cw, ch
+                                if obj.rot_y in [90.0, -90.0]: test_cw, test_ch = ch, cw
+                                
+                                if is_overlap(obj.pos_x, obj.pos_z, test_cw + 0.3, test_ch + 0.3, other.pos_x, other.pos_z, ow, oh):
+                                    collision = True
+                                    break
+                        if not collision: break 
+                        
+                        if rdir == 'V': obj.pos_z += 1.5
+                        elif rdir == 'H': obj.pos_x += 1.5
+                        else: obj.pos_z += 1.5
+                else:
+                    obj.pos_x, obj.pos_z = spawn_x, spawn_z
+            else:
+                obj.pos_x, obj.pos_y, obj.pos_z = spawn_x, spawn_y, spawn_z
+
+            if is_vehicle:
+                s, _, _ = get_car_info(os.path.basename(obj_path))
+                obj.scale = s
+                obj.texture_id = car_tex
+            elif is_building:
+                obj.texture_id = building_tex
+            elif is_prop:
+                obj.texture_id = car_tex 
+            
             scene_objects.append(obj)
             gui.selected_scene_obj_idx = len(scene_objects) - 1
-            gui.spawn_pos[0] += 2.5 
             gui.add_shape_requested = False
             
         if gui.clear_scene_requested:
@@ -425,25 +517,64 @@ def main():
         GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "viewPos"), *np.linalg.inv(view_matrix)[:3, 3])
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if getattr(gui, 'is_wireframe', False) else GL.GL_FILL)
 
-        for obj in scene_objects:
-            m_trans = translate(obj.pos_x, obj.pos_y, obj.pos_z)
-            m_scale = scale(obj.scale, obj.scale, obj.scale)
-            model_matrix = np.matmul(m_trans, np.matmul(np.matmul(rotate_y(obj.rot_y), rotate_x(obj.rot_x)), m_scale))
+        render_scene(v_mat, p_mat, gui.view_mode, my_shader)
+
+        if getattr(gui, 'generate_requested', False):
+            file_id = f"frame_{int(time.time())}"
             
-            GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "model"), 1, GL.GL_TRUE, model_matrix)
+            for d in ["dataset/images", "dataset/labels", "dataset/masks", "dataset/depth"]:
+                os.makedirs(d, exist_ok=True) 
+
+            # Lần 1: Chụp RGB (Dùng shader thành phố)
+            GL.glClearColor(*gui.bg_color, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 0, my_shader)
+            save_frame(window, "dataset/images", f"{file_id}.png", mode="RGB")
+
+            # Lần 2: Chụp Depth (Đặt bg đen để dễ phân biệt, dùng shader depth)
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 1, my_shader)
+            save_frame(window, "dataset/depth", f"{file_id}_depth.png", mode="L")
+
+            # Lần 3: Chụp Mask (Dùng shader mask, mỗi class 1 màu duy nhất)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 2, my_shader)
+            save_frame(window, "dataset/masks", f"{file_id}_mask.png", mode="RGB")
+
+            # Xử lý Hộp giới hạn 2D YOLO
+            labels = []
+            for obj in scene_objects:
+                if obj.class_name != "Background":
+                    bbox = get_2d_bbox(obj, v_mat, p_mat, win_size)
+                    if bbox: labels.append(bbox)
             
-            if gui.view_mode == 2:
-                GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "render_mode"), 0)
-                GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "flat_color"), *obj.mask_color)
-            else: 
-                GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "render_mode"), 4 if obj.texture_id > 0 else 3)
-                if obj.texture_id > 0 and gui.view_mode == 0:
-                    GL.glActiveTexture(GL.GL_TEXTURE0)
-                    GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
-                    GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "tex_diffuse"), 0)
+            with open(f"dataset/labels/{file_id}.txt", "w") as f:
+                f.write("\n".join(labels))
+
+
+            metadata = {
+                "camera": {
+                    "view_matrix": v_mat.tolist(),
+                    "projection_matrix": p_mat.tolist()
+                },
+                "objects": []
+            }
+            for obj in scene_objects:
+                if obj.class_name != "Background":
+                    metadata["objects"].append({
+                        "name": obj.name,
+                        "class": obj.class_name,
+                        "position_3d": [obj.pos_x, obj.pos_y, obj.pos_z],
+                        "rotation_y": obj.rot_y
+                    })
             
-            obj.shape.draw()
-            
+            with open(f"dataset/labels/{file_id}_meta.json", "w") as f:
+                json.dump(metadata, f, indent=4)
+
+            print(f"✅ Đã xuất xong bộ dữ liệu chuẩn: {file_id}")
+            gui.generate_requested = False
+
         imgui.render()
         impl.render(imgui.get_draw_data())
         glfw.swap_buffers(window)
