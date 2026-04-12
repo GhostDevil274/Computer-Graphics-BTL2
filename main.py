@@ -267,7 +267,6 @@ def main():
             scene_objects.append(car)
             placed_cars_data.append({'x': car.pos_x, 'z': car.pos_z, 'w': car_w, 'h': car_h, 'rot': car.rot_y})
 
-    print("Đang đúc nền móng tòa nhà...")
     for i, (tile_x, tile_z) in enumerate(open_space_tiles):
         if not building_models: break
         bldg = SceneObject(random.choice(building_models), f"Bldg_{i}", 2, "Building")
@@ -367,6 +366,17 @@ def main():
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_depth_map"), 1 if view_mode == 1 else 0)
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_mask_map"), 1 if view_mode == 2 else 0)
         
+
+        if shader == my_shader:
+            # Lấy trạng thái [True/False] từ checkbox trên giao diện ImGui
+            lights_active = gui.lights if view_mode == 0 else [False, False, False]
+            GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light1_on"), lights_active[0])
+            GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light2_on"), lights_active[1])
+            GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light3_on"), False)
+            # Truyền vị trí camera để tính toán phản chiếu (Specular)
+            GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3])
+
+
         for obj in scene_objects:
             m_trans = translate(obj.pos_x, obj.pos_y, obj.pos_z)
             m_rot = np.matmul(rotate_y(obj.rot_y), rotate_x(obj.rot_x))
@@ -489,8 +499,6 @@ def main():
             scene_objects = []
             gui.clear_scene_requested = False
             gui.selected_scene_obj_idx = 0
-
-        gui.render(cameras, scene_objects)
         
         fb_width, fb_height = glfw.get_framebuffer_size(window)
         win_size = glfw.get_window_size(window)
@@ -574,6 +582,8 @@ def main():
 
             print(f"✅ Đã xuất xong bộ dữ liệu chuẩn: {file_id}")
             gui.generate_requested = False
+        
+        gui.render(cameras, scene_objects)
 
         imgui.render()
         impl.render(imgui.get_draw_data())
