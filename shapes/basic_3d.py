@@ -4,7 +4,6 @@ import os
 from shapes.base_shape import BaseShape
 
 def generate_rainbow_colors(vertices):
-    """ Hàm tạo màu cầu vồng 3D """
     coords = np.array(vertices, dtype=np.float32)
     max_val = np.max(np.abs(coords)) if np.max(np.abs(coords)) != 0 else 1.0
     return ((coords / max_val + 1.0) / 2.0).astype(np.float32)
@@ -82,8 +81,6 @@ class SphereLatLong(BaseShape):
 
 class SphereSubdivision(BaseShape):
     def __init__(self, radius=0.8, subdivisions=4):
-        """ Mặt cầu Cách 2: Chia nhỏ Tứ diện đều (Subdivision) """
-        # 4 đỉnh của một Tứ diện đều
         verts = [
             np.array([1, 1, 1], dtype=np.float32), 
             np.array([-1, -1, 1], dtype=np.float32),
@@ -95,13 +92,11 @@ class SphereSubdivision(BaseShape):
         def normalize(v):
             return v / np.linalg.norm(v)
 
-        # Thuật toán chẻ tam giác
         for _ in range(subdivisions):
             new_inds = []
             for tri in inds:
                 v0, v1, v2 = verts[tri[0]], verts[tri[1]], verts[tri[2]]
                 
-                # Tìm trung điểm 3 cạnh và ép nó phồng ra ngoài (normalize)
                 m01 = normalize(v0 + v1)
                 m12 = normalize(v1 + v2)
                 m20 = normalize(v2 + v0)
@@ -110,7 +105,6 @@ class SphereSubdivision(BaseShape):
                 verts.extend([m01, m12, m20])
                 i01, i12, i20 = idx, idx+1, idx+2
 
-                # 1 tam giác cũ bị chẻ thành 4 tam giác mới
                 new_inds.extend([
                     [tri[0], i01, i20],
                     [tri[1], i12, i01],
@@ -119,7 +113,6 @@ class SphereSubdivision(BaseShape):
                 ])
             inds = new_inds
 
-        # Nhân với bán kính để ra kích thước thật
         final_verts = [(v / np.linalg.norm(v) * radius).tolist() for v in verts]
         flat_inds = [i for tri in inds for i in tri]
         
@@ -129,11 +122,9 @@ class SphereSubdivision(BaseShape):
 
 class SphereCube(BaseShape):
     def __init__(self, radius=0.8, resolution=16):
-        """ Mặt cầu Cách 3: Chiếu lưới Khối lập phương (Normalized Cube) """
         vertices = []
         indices = []
         
-        # 6 hướng của 6 mặt Lập phương (Normal, Up, Right)
         faces = [
             ( (1,0,0), (0,1,0), (0,0,1) ),   # Phải
             ( (-1,0,0), (0,1,0), (0,0,-1) ), # Trái
@@ -147,18 +138,15 @@ class SphereCube(BaseShape):
         for normal, up, right in faces:
             n, u, r = np.array(normal), np.array(up), np.array(right)
             
-            # Quét lưới caro cho từng mặt
             for i in range(resolution + 1):
                 for j in range(resolution + 1):
                     x = (j / resolution - 0.5) * 2.0
                     y = (i / resolution - 0.5) * 2.0
                     
                     point = n + u * y + r * x
-                    # Ép các điểm trên mặt phẳng phồng ra thành mặt cầu
                     point = point / np.linalg.norm(point) * radius
                     vertices.append(point.tolist())
                     
-            # Nối điểm lưới caro
             for i in range(resolution):
                 for j in range(resolution):
                     idx = offset + i * (resolution + 1) + j
@@ -214,7 +202,6 @@ class Cube(BaseShape):
 
 class Tetrahedron(BaseShape):
     def __init__(self, size=0.8):
-        """ Khối tứ diện đều (Chóp tam giác) """
         vertices = [
             [ size,  size,  size],
             [-size, -size,  size],
@@ -306,7 +293,6 @@ class ObjModel(BaseShape):
         else:
             print(f"[CẢNH BÁO] Không tìm thấy file {os.path.basename(mtl_filepath)}")
 
-        # 2. ĐỌC FILE .OBJ (GIỮ NGUYÊN TỌA ĐỘ GỐC)
         v_temp, vt_temp = [], []
         idx_map = {}
         next_idx = 0
@@ -337,7 +323,6 @@ class ObjModel(BaseShape):
                             
                             unique_key = f"{vertex_def}_{current_mtl}"
                             if unique_key not in idx_map:
-                                # --- ĐÃ SỬA LỖI ZERO DIMENSION Ở ĐÂY (DÙNG APPEND) ---
                                 vertices.append(v_temp[v_idx])
                                 uvs.append(vt_temp[vt_idx] if vt_idx >= 0 else [0.0, 0.0])
                                 colors.append(materials[current_mtl])

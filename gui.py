@@ -3,7 +3,9 @@ import imgui
 class AppGUI:
     def __init__(self):
         self.obj_filepath = "police.obj"
-        self.class_name = "Vehicles"
+        self.last_filepath = ""  
+        
+        self.class_name = "Vehicle"
         self.class_id = 1
         
         self.spawn_pos = [0.0, 0.0, 0.0]
@@ -14,7 +16,6 @@ class AppGUI:
         self.duplicate_obj_requested = False
         self.selected_scene_obj_idx = 0 
         
-        # Thêm để hỗ trợ texture
         self.texture_changed = False
         self.target_tex_obj_idx = 0
         
@@ -25,6 +26,30 @@ class AppGUI:
         self.bg_color = [0.5, 0.7, 0.9] 
         self.selected_cam_idx = 0
         self.generate_requested = False
+
+        self.show_bbox = False
+
+    def force_auto_detect(self):
+        path = self.obj_filepath.lower()
+        
+        vehicles = ['police', 'ambulance', 'taxi', 'suv', 'van', 'truck', 'tractor', 'kart', 'sedan', 'hatchback', 'delivery', 'race', 'firetruck']
+        buildings = ['building', 'skyscraper']
+        props = ['barrier', 'cone', 'light', 'sign', 'parasol', 'awning', 'debris', 'pillar', 'tire', 'bolt', 'bumper', 'door', 'drivetrain', 'nut', 'plate', 'spoiler']
+        roads = ['road', 'tile', 'pavement', 'sidewalk', 'crossing', 'bridge']
+
+        # Quét và gán ID
+        if any(kw in path for kw in vehicles):
+            self.class_name = "Vehicle"
+            self.class_id = 1
+        elif any(kw in path for kw in buildings):
+            self.class_name = "Building"
+            self.class_id = 2
+        elif any(kw in path for kw in props):
+            self.class_name = "Prop"
+            self.class_id = 3
+        elif any(kw in path for kw in roads):
+            self.class_name = "Background"
+            self.class_id = 0
 
     def render(self, cameras, scene_objects):
         imgui.new_frame()
@@ -37,7 +62,17 @@ class AppGUI:
         # --- SECTION 1: ASSET LOADER ---
         if imgui.collapsing_header("1. ASSET LOADER & LABELS", flags=imgui.TREE_NODE_DEFAULT_OPEN)[0]:
             imgui.text_colored("3D Model (.obj / .ply):", 1.0, 0.8, 0.2)
+            
             _, self.obj_filepath = imgui.input_text("File Path", self.obj_filepath, 256)
+            
+            imgui.same_line()
+            if imgui.button("Auto Detect"):
+                self.force_auto_detect()
+                self.last_filepath = self.obj_filepath
+                
+            if self.obj_filepath != self.last_filepath:
+                self.force_auto_detect()
+                self.last_filepath = self.obj_filepath
             
             imgui.spacing()
             imgui.text_colored("Ground Truth Labels (COCO/YOLO Format):", 0.4, 1.0, 0.4)
@@ -56,7 +91,9 @@ class AppGUI:
         
         # --- SECTION 2: SCENE MANAGEMENT ---
         if imgui.collapsing_header("2. SCENE MANAGEMENT", flags=imgui.TREE_NODE_DEFAULT_OPEN)[0]:
-            _, self.is_wireframe = imgui.checkbox("Wireframe Mode (Debug Mesh)", self.is_wireframe)
+            _, self.is_wireframe = imgui.checkbox("Wireframe Mode", self.is_wireframe)
+            imgui.same_line()
+            _, self.show_bbox = imgui.checkbox("Show 2D BBox", self.show_bbox)
             imgui.spacing()
             
             if len(scene_objects) == 0:
@@ -85,7 +122,7 @@ class AppGUI:
                 _, active_obj.pos_y = imgui.slider_float("Pos Y", active_obj.pos_y, -10.0, 50.0)
                 _, active_obj.pos_z = imgui.slider_float("Pos Z", active_obj.pos_z, -50.0, 50.0)
 
-        # --- SECTION 3: APPEARANCE & MATERIALS ---
+        # --- SECTION 3: APPEARANCE & LIGHTING ---
         if imgui.collapsing_header("3. APPEARANCE & LIGHTING", flags=imgui.TREE_NODE_DEFAULT_OPEN)[0]:
             if len(scene_objects) > 0 and self.view_mode == 0:
                 active_obj = scene_objects[self.selected_scene_obj_idx]
@@ -114,7 +151,7 @@ class AppGUI:
             else:
                 imgui.text_disabled("Material editing only available in RGB Mode.")
 
-        # --- SECTION 4: CAMERA CONTROLS  ---
+        # --- SECTION 4: CAMERA CONTROLS ---
         if imgui.collapsing_header("4. CAMERA SETTINGS", flags=imgui.TREE_NODE_DEFAULT_OPEN)[0]:
             _, self.selected_cam_idx = imgui.combo("Active Camera", self.selected_cam_idx, ["1. Dashcam", "2. Top-Down", "3. Free View"])
             
@@ -135,7 +172,7 @@ class AppGUI:
                 
         imgui.end()
 
-        # --- DATASET PIPELINE WINDOW (GIỮ NGUYÊN) ---
+        # --- DATASET PIPELINE WINDOW ---
         io = imgui.get_io()
         imgui.set_next_window_size(350, 220, imgui.FIRST_USE_EVER)
         imgui.set_next_window_position(io.display_size.x - 370, 20, imgui.FIRST_USE_EVER)

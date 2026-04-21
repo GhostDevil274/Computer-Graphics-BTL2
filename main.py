@@ -22,8 +22,15 @@ class SceneObject:
         self.class_id = class_id       
         self.class_name = class_name   
         
-        random.seed(self.class_id + 100)
-        self.mask_color = [random.uniform(0.1, 1.0), random.uniform(0.1, 1.0), random.uniform(0.1, 1.0)]
+        # RGB từ 0-1
+        SEMANTIC_COLORS = {
+            0: [0.2, 0.2, 0.2],  # Background/Road: Xám 
+            1: [0.9, 0.1, 0.1],  # Vehicle: Đỏ
+            2: [0.2, 0.5, 0.8],  # Building: Xanh dương
+            3: [0.8, 0.8, 0.1],  # Prop (Nón lá, rào chắn): Vàng
+        }
+
+        self.mask_color = SEMANTIC_COLORS.get(self.class_id, [1.0, 1.0, 1.0])
 
         self.scale = 1.0
         self.rot_x, self.rot_y = 0.0, 0.0
@@ -143,15 +150,13 @@ def main():
             prop_models.append(ObjModel(path))
 
     base_block = [
-        ['3', '2', '2', '2', '2', '2', '2', '2', '3'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['1', '.', '.', '.', '.', '.', '.', '.', '1'],
-        ['3', '2', '2', '2', '2', '2', '2', '2', '3']
+        ['3', '2', '2', '2', '2', '2', '2', '3'],
+        ['1', '.', '.', '.', '.', '.', '.', '1'],
+        ['1', '.', '.', '.', '.', '.', '.', '1'],
+        ['1', '.', '.', '.', '.', '.', '.', '1'],
+        ['1', '.', '.', '.', '.', '.', '.', '1'],
+        ['1', '.', '.', '.', '.', '.', '.', '1'],
+        ['3', '2', '2', '2', '2', '2', '2', '3']
     ]
 
     CITY_LAYOUT = []
@@ -359,7 +364,6 @@ def main():
     glfw.set_scroll_callback(window, on_scroll)
 
     def render_scene(v_mat, p_mat, view_mode, shader):
-        """Hàm hỗ trợ vẽ toàn bộ cảnh theo 3 chế độ (RGB, Depth, Mask)"""
         shader.use()
         GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat)
         GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "projection"), 1, GL.GL_TRUE, p_mat)
@@ -368,12 +372,10 @@ def main():
         
 
         if shader == my_shader:
-            # Lấy trạng thái [True/False] từ checkbox trên giao diện ImGui
             lights_active = gui.lights if view_mode == 0 else [False, False, False]
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light1_on"), lights_active[0])
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light2_on"), lights_active[1])
-            GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light3_on"), False)
-            # Truyền vị trí camera để tính toán phản chiếu (Specular)
+            GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light3_on"), lights_active[2])
             GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3])
 
 
@@ -520,7 +522,7 @@ def main():
         lights_active = gui.lights if gui.view_mode == 0 else [False, False, False]
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light1_on"), lights_active[0])
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light2_on"), lights_active[1])
-        GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light3_on"), False)
+        GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light3_on"), lights_active[2])
         
         GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "viewPos"), *np.linalg.inv(view_matrix)[:3, 3])
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if getattr(gui, 'is_wireframe', False) else GL.GL_FILL)
@@ -550,7 +552,7 @@ def main():
             render_scene(v_mat, p_mat, 2, my_shader)
             save_frame(window, "dataset/masks", f"{file_id}_mask.png", mode="RGB")
 
-            # Xử lý Hộp giới hạn 2D YOLO
+            # Xử lý Bounding Box YOLO
             labels = []
             for obj in scene_objects:
                 if obj.class_name != "Background":
@@ -584,6 +586,36 @@ def main():
             gui.generate_requested = False
         
         gui.render(cameras, scene_objects)
+
+        if gui.show_bbox:
+            draw_list = imgui.get_background_draw_list()
+            ww, wh = glfw.get_window_size(window) 
+            
+            active_cam = cameras[gui.selected_cam_idx]
+            live_v_mat = active_cam.view_matrix()
+            live_p_mat = active_cam.projection_matrix((ww, wh))
+
+            for obj in scene_objects:
+                if obj.class_name == "Background": continue
+                
+                bbox = get_2d_bbox(obj, live_v_mat, live_p_mat, (ww, wh))
+                
+                if bbox:
+                    _, x_c, y_c, w_b, h_b = map(float, bbox.split())
+                    
+                    x1 = (x_c - w_b / 2.0) * ww
+                    y1 = (y_c - h_b / 2.0) * wh
+                    x2 = (x_c + w_b / 2.0) * ww
+                    y2 = (y_c + h_b / 2.0) * wh
+
+                    r, g, b = obj.mask_color
+                    box_color = imgui.get_color_u32_rgba(r, g, b, 1.0)
+                    
+                    draw_list.add_rect(x1, y1, x2, y2, box_color, thickness=2.0)
+                    
+                    bg_color = imgui.get_color_u32_rgba(0.0, 0.0, 0.0, 0.6)
+                    draw_list.add_rect_filled(x1, y1 - 18, x1 + 80, y1, bg_color) 
+                    draw_list.add_text(x1 + 4, y1 - 17, box_color, f"{obj.class_name}")
 
         imgui.render()
         impl.render(imgui.get_draw_data())
