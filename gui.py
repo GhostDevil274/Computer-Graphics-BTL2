@@ -22,7 +22,7 @@ class AppGUI:
         self.is_wireframe = False
         self.view_mode = 0 
 
-        self.lights = [True, True, False] 
+        self.lights = [True, False, False] 
         self.bg_color = [0.5, 0.7, 0.9] 
         self.selected_cam_idx = 0
         self.generate_requested = False
@@ -31,25 +31,42 @@ class AppGUI:
 
     def force_auto_detect(self):
         path = self.obj_filepath.lower()
-        
-        vehicles = ['police', 'ambulance', 'taxi', 'suv', 'van', 'truck', 'tractor', 'kart', 'sedan', 'hatchback', 'delivery', 'race', 'firetruck']
-        buildings = ['building', 'skyscraper']
-        props = ['barrier', 'cone', 'light', 'sign', 'parasol', 'awning', 'debris', 'pillar', 'tire', 'bolt', 'bumper', 'door', 'drivetrain', 'nut', 'plate', 'spoiler']
-        roads = ['road', 'tile', 'pavement', 'sidewalk', 'crossing', 'bridge']
+        mapping = {
+            # Nhóm xe (0-16)
+            'suv':              ("SUV", 0),
+            'police':           ("Police_Car", 1),
+            'ambulance':        ("Ambulance", 2),
+            'taxi':             ("Taxi", 3),
+            'truck':            ("Truck", 4),
+            'firetruck':        ("Fire_Truck", 5),
+            'van':              ("Van", 6),
+            'sedan':            ("Sedan", 7),
+            'garbage-truck':    ("Garbage_Truck", 8),
+            'hatchback-sports': ("Hatchback_Sports", 9),
+            'race':             ("Race_Car", 10),
+            'race-future':      ("Race_Future", 11),
+            'sedan-sports':     ("Sedan_Sports", 12),
+            'suv-luxury':       ("SUV_Luxury", 13),
+            'truck-flat':       ("Truck_Flat", 14),
+            'delivery':         ("Delivery", 15),
+            'delivery-flat':    ("Delivery_Flat", 16),
+            
+            # Nhóm kiến trúc (Tiếp nối ID)
+            'building':         ("Building", 17),
+            'skyscraper':       ("Skyscraper", 18)
+        }
 
-        # Quét và gán ID
-        if any(kw in path for kw in vehicles):
-            self.class_name = "Vehicle"
-            self.class_id = 1
-        elif any(kw in path for kw in buildings):
-            self.class_name = "Building"
-            self.class_id = 2
-        elif any(kw in path for kw in props):
+        found = False
+        for key, (name, cid) in mapping.items():
+            if key in path:
+                self.class_name = name
+                self.class_id = cid
+                found = True
+                break
+        
+        if not found: # Nếu không khớp cái nào thì giữ mặc định
             self.class_name = "Prop"
             self.class_id = 3
-        elif any(kw in path for kw in roads):
-            self.class_name = "Background"
-            self.class_id = 0
 
     def render(self, cameras, scene_objects):
         imgui.new_frame()
@@ -153,7 +170,14 @@ class AppGUI:
 
         # --- SECTION 4: CAMERA CONTROLS ---
         if imgui.collapsing_header("4. CAMERA SETTINGS", flags=imgui.TREE_NODE_DEFAULT_OPEN)[0]:
-            _, self.selected_cam_idx = imgui.combo("Active Camera", self.selected_cam_idx, ["1. Dashcam", "2. Top-Down", "3. Free View"])
+            _, self.selected_cam_idx = imgui.combo("Active Camera", self.selected_cam_idx, ["1. Dashcam", 
+                "2. Top-Down", 
+                "3. CCTV 1 (East)", 
+                "4. CCTV 2 (South)", 
+                "5. North Cross", 
+                "6. West Cross", 
+                "7. Roof View", 
+                "8. Low Wheel View"])
             
             cam = cameras[self.selected_cam_idx]
             imgui.spacing()
@@ -167,8 +191,7 @@ class AppGUI:
             _, cam.target[2] = imgui.slider_float("Target Z", cam.target[2], -50.0, 50.0)
             
             if imgui.button("Reset Camera View", width=-1):
-                cam.distance, cam.azimuth, cam.elevation = 15.0, 0.0, 20.0
-                cam.target = [0.0, 0.0, 0.0]
+                pass
                 
         imgui.end()
 

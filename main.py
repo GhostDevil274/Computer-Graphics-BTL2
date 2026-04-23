@@ -1,3 +1,4 @@
+import math
 import glfw
 import OpenGL.GL as GL
 import imgui
@@ -22,14 +23,30 @@ class SceneObject:
         self.class_id = class_id       
         self.class_name = class_name   
         
-        # RGB từ 0-1
+        # BẢNG MÀU CHUẨN KÈM ID CỦA ÔNG
         SEMANTIC_COLORS = {
-            0: [0.2, 0.2, 0.2],  # Background/Road: Xám 
-            1: [0.9, 0.1, 0.1],  # Vehicle: Đỏ
-            2: [0.2, 0.5, 0.8],  # Building: Xanh dương
-            3: [0.8, 0.8, 0.1],  # Prop (Nón lá, rào chắn): Vàng
+            0: [0.1, 0.1, 0.1],      # Đường (Xám tối)
+            2: [0.15, 0.15, 0.15],   # Building (Xám nhạt hơn)
+            3: [0.2, 0.2, 0.2],      # Prop (Xám vừa)
+            1: [0.1, 0.1, 0.9],      # Police_Car 
+            4: [0.8, 0.1, 0.8],      # SUV 
+            5: [0.9, 0.1, 0.1],      # Ambulance 
+            6: [0.9, 0.6, 0.1],      # Taxi 
+            7: [0.2, 0.8, 0.2],      # Truck 
+            8: [0.6, 0.0, 0.0],      # Fire_Truck 
+            9: [0.4, 0.2, 0.6],      # Van 
+            10: [0.1, 0.8, 0.8],     # Sedan 
+            11: [0.5, 0.5, 0.5],     # Garbage_Truck 
+            12: [1.0, 0.1, 0.4],     # Hatchback_Sports 
+            13: [1.0, 1.0, 0.0],     # Race_Car 
+            14: [0.0, 1.0, 0.8],     # Race_Future 
+            15: [0.3, 0.3, 0.8],     # Sedan_Sports 
+            16: [0.7, 0.4, 0.8],     # SUV_Luxury 
+            17: [0.6, 0.3, 0.1],     # Truck_Flat 
+            18: [0.9, 0.9, 0.9],     # Delivery 
+            19: [0.7, 0.7, 0.2],     # Delivery_Flat 
+            20: [0.3, 0.3, 0.3],     # Skyscraper
         }
-
         self.mask_color = SEMANTIC_COLORS.get(self.class_id, [1.0, 1.0, 1.0])
 
         self.scale = 1.0
@@ -41,14 +58,69 @@ class SceneObject:
         self.texture_id = 0
         self.texture_filepath = ""
 
+        self.wheel_rotation = 0.0
+        self.wheel_radius = 0.3 
+        self.velocity = 3.0     
+
+    def update_physics(self, dt, speed_multiplier=1.0, all_objs=None, road_tiles=None):
+        if self.class_name in ["Background", "Building", "Prop", "Skyscraper"]: 
+            return
+
+        if not hasattr(self, 'velocity'): self.velocity = 3.0
+        if not hasattr(self, 'wheel_radius'): self.wheel_radius = 0.3
+        if not hasattr(self, 'wheel_rotation'): self.wheel_rotation = 0.0
+
+        safe_dt = min(dt, 0.033) 
+        actual_speed = self.velocity * speed_multiplier
+        
+        rad = math.radians(self.rot_y)
+        dir_x = round(math.sin(rad)) 
+        dir_z = round(math.cos(rad))
+
+        can_move = True
+        if all_objs is not None:
+            for other in all_objs:
+                if other is self or other.class_name in ["Background", "Building", "Prop"]: 
+                    continue
+                if hasattr(other, 'pos_x'):
+                    is_same_lane = False
+                    if abs(dir_x) == 1:
+                        if abs(other.pos_z - self.pos_z) < 0.5: is_same_lane = True
+                    else: 
+                        if abs(other.pos_x - self.pos_x) < 0.5: is_same_lane = True
+                        
+                    if is_same_lane:
+                        dx = other.pos_x - self.pos_x
+                        dz = other.pos_z - self.pos_z
+                        dist = math.sqrt(dx**2 + dz**2)
+                        
+                        if 0.1 < dist < 3.5:
+                            dot = (dx * dir_x) + (dz * dir_z)
+                            if dot > 0.85 * dist: 
+                                can_move = False
+                                break
+        
+        if not can_move:
+            actual_speed = 0.0 
+
+
+        self.pos_x += dir_x * actual_speed * safe_dt
+        self.pos_z += dir_z * actual_speed * safe_dt
+        self.wheel_rotation += (actual_speed * safe_dt / self.wheel_radius) * (180.0 / math.pi)
+        
+        if self.pos_x > 40.0: self.pos_x -= 80.0
+        elif self.pos_x < -40.0: self.pos_x += 80.0
+        
+        if self.pos_z > 40.0: self.pos_z -= 80.0
+        elif self.pos_z < -40.0: self.pos_z += 80.0
+
+
 def load_texture(filepath):
     base_path = filepath if filepath.startswith("assets") else os.path.join("assets", "textures", filepath)
     possible_paths = [base_path, base_path + ".png", base_path.replace(".png", "") + ".jpg", base_path.replace(".png", "")]
     actual_path = next((p for p in possible_paths if os.path.exists(p)), None)
     
-    if not actual_path: 
-        return 0
-        
+    if not actual_path: return 0
     try:
         img = Image.open(actual_path).convert("RGBA")
         img_data = np.array(img, np.uint8) 
@@ -74,6 +146,22 @@ def screen_to_world_ray(xpos, ypos, win_w, win_h, view_matrix, proj_matrix):
     inv_view = np.linalg.inv(view_matrix)
     ray_wor = np.dot(inv_view, ray_eye)[:3]
     return inv_view[:3, 3], ray_wor / np.linalg.norm(ray_wor)
+
+def compute_bbox(filepath):
+    try:
+        with open(filepath, 'r') as f:
+            xs, ys, zs = [], [], []
+            for line in f:
+                if line.startswith('v '):
+                    parts = line.strip().split()
+                    if len(parts) >= 4:
+                        xs.append(float(parts[1]))
+                        ys.append(float(parts[2]))
+                        zs.append(float(parts[3]))
+        if xs: return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
+    except Exception: pass
+    return (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
+
 
 def main():
     if not glfw.init(): return
@@ -130,24 +218,34 @@ def main():
     road_straight = ObjModel(os.path.join("assets", "models", "road-straight.obj"))
     road_cross = ObjModel(os.path.join("assets", "models", "road-intersection.obj"))
     
-    car_files = ["sedan.obj", "police.obj", "taxi.obj", "suv.obj", "van.obj", "ambulance.obj", "firetruck.obj", "garbage-truck.obj", "truck.obj"]
+    car_files = [
+        "ambulance.obj", "firetruck.obj", "garbage-truck.obj", 
+        "hatchback-sports.obj", "police.obj", "race.obj", 
+        "race-future.obj", "sedan.obj", "sedan-sports.obj", 
+        "suv.obj", "suv-luxury.obj", "taxi.obj", "truck.obj", 
+        "truck-flat.obj", "delivery.obj", "delivery-flat.obj", "van.obj"
+    ]
     car_models = []
     for m in car_files:
         path = os.path.join("assets", "models", m)
         if os.path.exists(path):
             mdl = ObjModel(path)
             mdl.filename = m 
+            mdl.bbox = compute_bbox(path) 
             car_models.append(mdl)
             
-    bldg_files = ["building-a.obj", "building-c.obj", "building-d.obj", "building-j.obj", "building-k.obj", "building-m.obj", "building-skyscraper-a.obj", "building-skyscraper-b.obj", "building-skyscraper-d.obj", "building-skyscraper-e.obj"]
-    building_models = [ObjModel(os.path.join("assets", "models", m)) for m in bldg_files if os.path.exists(os.path.join("assets", "models", m))]
-
-    prop_files = ["light-curved.obj", "light-square.obj", "sign-highway.obj", "sign-highway-detailed.obj"]
-    prop_models = []
-    for m in prop_files:
+    bldg_files = ["building-a.obj", "building-c.obj", "building-d.obj", "building-b.obj", "building-e.obj", "building-f.obj", "building-g.obj", "building-h.obj", "building-i.obj", "building-j.obj", "building-k.obj", "building-l.obj", "building-m.obj", "building-n.obj", "building-skyscraper-a.obj", "building-skyscraper-b.obj", "building-skyscraper-c.obj", "building-skyscraper-d.obj", "building-skyscraper-e.obj"]
+    building_models = []
+    for m in bldg_files:
         path = os.path.join("assets", "models", m)
         if os.path.exists(path):
-            prop_models.append(ObjModel(path))
+            mdl = ObjModel(path)
+            mdl.filename = m
+            mdl.bbox = compute_bbox(path) 
+            building_models.append(mdl)
+
+    prop_files = ["light-curved.obj", "light-square.obj", "sign-highway.obj", "sign-highway-detailed.obj"]
+    prop_models = [ObjModel(os.path.join("assets", "models", m)) for m in prop_files if os.path.exists(os.path.join("assets", "models", m))]
 
     base_block = [
         ['3', '2', '2', '2', '2', '2', '2', '3'],
@@ -224,10 +322,9 @@ def main():
         if random.random() > 0.20: continue 
         
         prop = SceneObject(random.choice(prop_models), "Street_Prop", 3, "Prop")
-        
         prop.texture_id = car_tex 
         
-        edge_offset = TILE_SIZE * 0.45 
+        edge_offset = TILE_SIZE * 0.65 
         if rdir == 'V':
             prop.pos_x = rx + edge_offset * random.choice([1, -1])
             prop.pos_z = rz + random.uniform(-0.3, 0.3)
@@ -237,35 +334,81 @@ def main():
             prop.pos_z = rz + edge_offset * random.choice([1, -1])
             prop.rot_y = 0.0 if prop.pos_z > rz else 180.0
         else:
-            prop.pos_x = rx + edge_offset
-            prop.pos_z = rz + edge_offset
-            prop.rot_y = 225.0
+            prop.pos_x = rx + edge_offset * random.choice([1, -1])
+            prop.pos_z = rz + edge_offset * random.choice([1, -1])
+            prop.rot_y = random.choice([45.0, 135.0, 225.0, 315.0])
             
         scene_objects.append(prop)
 
-    num_cars_to_place = 100 
+    # ĐÃ FIX: CHỈ CÒN 70 XE VÀ SINH VỊ TRÍ CHUẨN 2 CHIỀU!
+    num_cars_to_place = 70 
     placed_cars_data = [] 
     
     for i in range(num_cars_to_place):
         if not car_models: break
-        rt_x, rt_z, rt_dir = random.choice(road_tiles)
-        if rt_dir == 'C': continue 
         
+        rt_x, rt_z, rt_dir = random.choice(road_tiles)
+        if rt_dir == 'C': 
+            continue
+
+        class_mapping = {
+            'police': ("Police_Car", 1),
+            'suv': ("SUV", 4),
+            'ambulance': ("Ambulance", 5),
+            'taxi': ("Taxi", 6),
+            'truck': ("Truck", 7),
+            'firetruck': ("Fire_Truck", 8),
+            'van': ("Van", 9),
+            'sedan': ("Sedan", 10),
+            'garbage-truck': ("Garbage_Truck", 11),
+            'hatchback-sports': ("Hatchback_Sports", 12),
+            'race': ("Race_Car", 13),
+            'race-future': ("Race_Future", 14),
+            'sedan-sports': ("Sedan_Sports", 15),
+            'suv-luxury': ("SUV_Luxury", 16),
+            'truck-flat': ("Truck_Flat", 17),
+            'delivery': ("Delivery", 18),
+            'delivery-flat': ("Delivery_Flat", 19)
+        }
+
         car_model = random.choice(car_models)
-        car = SceneObject(car_model, f"Car_{i}", 1, "Car")
+
+        if not hasattr(car_model, 'bbox'): 
+            car_model.bbox = compute_bbox(os.path.join("assets", "models", getattr(car_model, 'filename', '')))
+        
+        name_lower = getattr(car_model, 'filename', '').lower()
+        c_name, c_id = "Sedan", 10 
+        for k, v in class_mapping.items():
+            if k in name_lower:
+                c_name, c_id = v
+                break
+
+        car = SceneObject(car_model, f"{c_name}_{i}", c_id, c_name)
+        
         base_car_scale, base_w, base_h = get_car_info(getattr(car_model, 'filename', ''))
         car.scale = base_car_scale * random.uniform(0.95, 1.05) 
         car_w, car_h = base_w * car.scale, base_h * car.scale
         
-        offset = 0.25 * TILE_SIZE 
+        # CÔNG THỨC 2 LÀN CÙNG CHIỀU CHUẨN XÁC
+        offset = 0.30 * TILE_SIZE 
+        direction = random.choice([1, -1]) 
+        
         if rt_dir == 'V':
-            car.pos_x = rt_x + offset if random.random() > 0.5 else rt_x - offset
-            car.pos_z = rt_z
-            car.rot_y = 0.0 if car.pos_x > rt_x else 180.0
+            if direction == 1:
+                car.pos_x = rt_x + offset
+                car.rot_y = 180.0
+            else:
+                car.pos_x = rt_x - offset
+                car.rot_y = 0.0
+            car.pos_z = rt_z + random.uniform(-2.0, 2.0)
         else:
-            car.pos_z = rt_z + offset if random.random() > 0.5 else rt_z - offset
-            car.pos_x = rt_x
-            car.rot_y = -90.0 if car.pos_z > rt_z else 90.0
+            if direction == 1:
+                car.pos_z = rt_z + offset
+                car.rot_y = 90.0
+            else:
+                car.pos_z = rt_z - offset
+                car.rot_y = -90.0
+            car.pos_x = rt_x + random.uniform(-2.0, 2.0)
             
         if not check_car_collision(car.pos_x, car.pos_z, car_w, car_h, car.rot_y, placed_cars_data):
             car.texture_id = car_tex
@@ -296,18 +439,28 @@ def main():
         ego_x = (0 - offset_x) * TILE_SIZE + 0.25 * TILE_SIZE
         ego_z = (5 - offset_z) * TILE_SIZE
         ego_model = car_models[0] 
-        ego_car = SceneObject(ego_model, "Ego_Dashcam_Car", 1, "Car")
+        # Đã cập nhật lại ID Ego Car thành Sedan
+        ego_car = SceneObject(ego_model, "Ego_Dashcam_Car", 10, "Sedan")
         ego_base_scale, _, _ = get_car_info(getattr(ego_model, 'filename', ''))
         ego_car.scale = ego_base_scale
         ego_car.pos_x, ego_car.pos_z, ego_car.rot_y = ego_x, ego_z, 180.0
         ego_car.texture_id = car_tex
         scene_objects.append(ego_car)
 
-    cameras = [Trackball(distance=10.0), Trackball(distance=40.0), Trackball(distance=25.0)]
-    cameras[0].elevation, cameras[0].azimuth = 10.0, 0.0 
-    cameras[1].elevation, cameras[1].azimuth = 80.0, 0.0 
-    cameras[2].elevation, cameras[2].azimuth = 30.0, -45.0
-    if len(car_models) > 0: cameras[0].target = np.array([ego_x, 0.2, ego_z], dtype=np.float32)
+    # --- KHỞI TẠO HỆ THỐNG CAMERA ---
+    cameras = []
+    cam0 = Trackball(distance=15.0); cam0.azimuth = 0.0; cam0.elevation = 10.0
+    cam1 = Trackball(distance=40.0); cam1.azimuth = 0.0; cam1.elevation = 80.0
+    cam2 = Trackball(distance=25.0, target=[-10.0, 0.0, -10.0]); cam2.azimuth = 45.0; cam2.elevation = 30.0
+    cam3 = Trackball(distance=25.0, target=[10.0, 0.0, 10.0]); cam3.azimuth = -45.0; cam3.elevation = 30.0
+    cam4 = Trackball(distance=30.0, target=[-20.0, 0.0, 0.0]); cam4.azimuth=90.0; cam4.elevation=25.0
+    cam5 = Trackball(distance=30.0, target=[0.0, 0.0, -20.0]); cam5.azimuth=180.0; cam5.elevation=25.0
+    cam6 = Trackball(distance=60.0, target=[0.0, 0.0, 0.0]); cam6.azimuth=135.0; cam6.elevation=45.0
+    cam7 = Trackball(distance=8.0, target=[5.0, 0.0, 5.0]); cam7.azimuth=-30.0; cam7.elevation=5.0
+
+    cameras = [cam0, cam1, cam2, cam3, cam4, cam5, cam6, cam7]
+    if len(car_models) > 0: 
+        cameras[0].target = np.array([ego_x, 0.2, ego_z], dtype=np.float32)
 
     def on_mouse_click(win, button, action, mods):
         if imgui.get_io().want_capture_mouse: return
@@ -370,7 +523,6 @@ def main():
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_depth_map"), 1 if view_mode == 1 else 0)
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_mask_map"), 1 if view_mode == 2 else 0)
         
-
         if shader == my_shader:
             lights_active = gui.lights if view_mode == 0 else [False, False, False]
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light1_on"), lights_active[0])
@@ -378,27 +530,41 @@ def main():
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light3_on"), lights_active[2])
             GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3])
 
-
         for obj in scene_objects:
+            if obj.class_name not in ["Background", "Building", "Prop", "Skyscraper"]:
+                if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: 
+                    continue
             m_trans = translate(obj.pos_x, obj.pos_y, obj.pos_z)
             m_rot = np.matmul(rotate_y(obj.rot_y), rotate_x(obj.rot_x))
             m_scale = scale(obj.scale, obj.scale, obj.scale)
             model_matrix = np.matmul(m_trans, np.matmul(m_rot, m_scale))
             GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "model"), 1, GL.GL_TRUE, model_matrix)
             
-            if view_mode == 2: # Mask Mode
+            if view_mode == 2: 
                 GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 0)
                 GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "flat_color"), *obj.mask_color)
-            else: # RGB / Depth Mode
+            else: 
                 GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 4 if obj.texture_id > 0 else 3)
                 if obj.texture_id > 0 and view_mode == 0:
                     GL.glActiveTexture(GL.GL_TEXTURE0)
                     GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
             obj.shape.draw()
 
+    
+    last_time = glfw.get_time()
+
     while not glfw.window_should_close(window):
+        current_time = glfw.get_time()
+        dt = current_time - last_time
+        last_time = current_time
+
         glfw.poll_events()
         impl.process_inputs()
+
+        speed_mult = getattr(gui, 'car_speed', 1.0)
+        for obj in scene_objects:
+            if hasattr(obj, 'update_physics'):
+                obj.update_physics(dt, speed_mult, scene_objects, road_tiles)
 
         ww, wh = glfw.get_window_size(window)
         current_cam = cameras[gui.selected_cam_idx]
@@ -419,7 +585,7 @@ def main():
             gui.selected_scene_obj_idx = len(scene_objects) - 1
             gui.duplicate_obj_requested = False
 
-        if gui.add_shape_requested:
+        if getattr(gui, 'add_shape_requested', False):
             obj_path = os.path.join("assets", "models", gui.obj_filepath) if not gui.obj_filepath.startswith("assets") else gui.obj_filepath
             new_shape = ObjModel(filepath=obj_path)
             obj = SceneObject(new_shape, f"#{len(scene_objects)+1} {gui.class_name}", gui.class_id, gui.class_name)
@@ -432,7 +598,7 @@ def main():
             is_building = any(kw in gui.class_name.lower() or kw in gui.obj_filepath.lower() for kw in kw_buildings)
             is_prop = any(kw in gui.class_name.lower() or kw in gui.obj_filepath.lower() for kw in kw_props)
 
-            cam_target = cameras[gui.selected_cam_idx].target
+            cam_target = current_cam.target
             spawn_x, spawn_y, spawn_z = cam_target[0], cam_target[1], cam_target[2]
             
             best_dist, best_road = float('inf'), None
@@ -497,37 +663,33 @@ def main():
             gui.selected_scene_obj_idx = len(scene_objects) - 1
             gui.add_shape_requested = False
             
-        if gui.clear_scene_requested:
+        if getattr(gui, 'clear_scene_requested', False):
             scene_objects = []
             gui.clear_scene_requested = False
             gui.selected_scene_obj_idx = 0
-        
+
         fb_width, fb_height = glfw.get_framebuffer_size(window)
-        win_size = glfw.get_window_size(window)
-        current_cam = cameras[gui.selected_cam_idx]
-        view_matrix, projection_matrix = current_cam.view_matrix(), current_cam.projection_matrix(win_size)
-        
         GL.glViewport(0, 0, fb_width, fb_height)
         
-        bg = gui.bg_color if gui.view_mode == 0 else [0.0, 0.0, 0.0]
+        bg = gui.bg_color if getattr(gui, 'view_mode', 0) == 0 else [0.0, 0.0, 0.0]
         GL.glClearColor(*bg, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
         
         my_shader.use()
-        GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "view"), 1, GL.GL_TRUE, view_matrix)
-        GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "projection"), 1, GL.GL_TRUE, projection_matrix)
-        GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "is_depth_map"), 1 if gui.view_mode == 1 else 0)
+        GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat)
+        GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "projection"), 1, GL.GL_TRUE, p_mat)
+        GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "is_depth_map"), 1 if getattr(gui, 'view_mode', 0) == 1 else 0)
         GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "bg_color"), *bg)
         
-        lights_active = gui.lights if gui.view_mode == 0 else [False, False, False]
+        lights_active = gui.lights if getattr(gui, 'view_mode', 0) == 0 else [False, False, False]
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light1_on"), lights_active[0])
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light2_on"), lights_active[1])
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light3_on"), lights_active[2])
+        GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3])
         
-        GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "viewPos"), *np.linalg.inv(view_matrix)[:3, 3])
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if getattr(gui, 'is_wireframe', False) else GL.GL_FILL)
 
-        render_scene(v_mat, p_mat, gui.view_mode, my_shader)
+        render_scene(v_mat, p_mat, getattr(gui, 'view_mode', 0), my_shader)
 
         if getattr(gui, 'generate_requested', False):
             file_id = f"frame_{int(time.time())}"
@@ -535,33 +697,29 @@ def main():
             for d in ["dataset/images", "dataset/labels", "dataset/masks", "dataset/depth"]:
                 os.makedirs(d, exist_ok=True) 
 
-            # Lần 1: Chụp RGB (Dùng shader thành phố)
             GL.glClearColor(*gui.bg_color, 1.0)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             render_scene(v_mat, p_mat, 0, my_shader)
-            save_frame(window, "dataset/images", f"{file_id}.png", mode="RGB")
+            save_frame(window, "dataset/images", f"frame_{file_id}.png", mode="RGB")
 
-            # Lần 2: Chụp Depth (Đặt bg đen để dễ phân biệt, dùng shader depth)
             GL.glClearColor(0.0, 0.0, 0.0, 1.0)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             render_scene(v_mat, p_mat, 1, my_shader)
-            save_frame(window, "dataset/depth", f"{file_id}_depth.png", mode="L")
+            save_frame(window, "dataset/depth", f"frame_{file_id}_depth.png", mode="L")
 
-            # Lần 3: Chụp Mask (Dùng shader mask, mỗi class 1 màu duy nhất)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             render_scene(v_mat, p_mat, 2, my_shader)
-            save_frame(window, "dataset/masks", f"{file_id}_mask.png", mode="RGB")
+            save_frame(window, "dataset/masks", f"frame_{file_id}_mask.png", mode="MASK", scene_objects=scene_objects, v_mat=v_mat, p_mat=p_mat)
 
-            # Xử lý Bounding Box YOLO
             labels = []
             for obj in scene_objects:
-                if obj.class_name != "Background":
-                    bbox = get_2d_bbox(obj, v_mat, p_mat, win_size)
+                if obj.class_name not in ["Background", "Building", "Prop"]:
+                    if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: continue
+                    bbox = get_2d_bbox(obj, v_mat, p_mat, (ww, wh))
                     if bbox: labels.append(bbox)
-            
+
             with open(f"dataset/labels/{file_id}.txt", "w") as f:
                 f.write("\n".join(labels))
-
 
             metadata = {
                 "camera": {
@@ -571,7 +729,8 @@ def main():
                 "objects": []
             }
             for obj in scene_objects:
-                if obj.class_name != "Background":
+                if obj.class_name not in ["Background", "Building", "Prop"]:
+                    if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: continue
                     metadata["objects"].append({
                         "name": obj.name,
                         "class": obj.class_name,
@@ -587,18 +746,13 @@ def main():
         
         gui.render(cameras, scene_objects)
 
-        if gui.show_bbox:
+        if getattr(gui, 'show_bbox', False):
             draw_list = imgui.get_background_draw_list()
-            ww, wh = glfw.get_window_size(window) 
             
-            active_cam = cameras[gui.selected_cam_idx]
-            live_v_mat = active_cam.view_matrix()
-            live_p_mat = active_cam.projection_matrix((ww, wh))
-
             for obj in scene_objects:
-                if obj.class_name == "Background": continue
-                
-                bbox = get_2d_bbox(obj, live_v_mat, live_p_mat, (ww, wh))
+                if obj.class_name in ["Background", "Building", "Prop"]: continue
+                if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: continue
+                bbox = get_2d_bbox(obj, v_mat, p_mat, (ww, wh))
                 
                 if bbox:
                     _, x_c, y_c, w_b, h_b = map(float, bbox.split())

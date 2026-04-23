@@ -1,0 +1,888 @@
+{
+    "camera": {
+        "view_matrix": [
+            [
+                0.22495104372501373,
+                -0.0,
+                0.9743700623512268,
+                6.645474433898926
+            ],
+            [
+                0.5392081141471863,
+                0.8329212069511414,
+                -0.12448599934577942,
+                7.067759037017822
+            ],
+            [
+                -0.8115735054016113,
+                0.5533915162086487,
+                0.18736650049686432,
+                -27.48973274230957
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+            ]
+        ],
+        "projection_matrix": [
+            [
+                1.2910383939743042,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                2.4142136573791504,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                -1.0020020008087158,
+                -0.20020020008087158
+            ],
+            [
+                0.0,
+                0.0,
+                -1.0,
+                0.0
+            ]
+        ]
+    },
+    "objects": [
+        {
+            "name": "Van_0",
+            "class": "Van",
+            "position_3d": [
+                -1.9500000000000002,
+                0.0,
+                -10.075
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_1",
+            "class": "Truck",
+            "position_3d": [
+                9.425,
+                0.0,
+                -3.25
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Truck_2",
+            "class": "Truck",
+            "position_3d": [
+                -9.425,
+                0.0,
+                -11.05
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Sedan_3",
+            "class": "Sedan",
+            "position_3d": [
+                -10.075,
+                0.0,
+                -13.65
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Truck_4",
+            "class": "Truck",
+            "position_3d": [
+                13.65,
+                0.0,
+                -9.425
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Ambulance_5",
+            "class": "Ambulance",
+            "position_3d": [
+                -19.825000000000003,
+                0.0,
+                13.65
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Sedan_6",
+            "class": "Sedan",
+            "position_3d": [
+                -9.425,
+                0.0,
+                -5.8500000000000005
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Truck_7",
+            "class": "Truck",
+            "position_3d": [
+                -0.9750000000000001,
+                0.0,
+                -14.950000000000001
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Taxi_8",
+            "class": "Taxi",
+            "position_3d": [
+                -18.85,
+                0.0,
+                0.325
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Ambulance_9",
+            "class": "Ambulance",
+            "position_3d": [
+                9.425,
+                0.0,
+                -16.25
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Truck_10",
+            "class": "Truck",
+            "position_3d": [
+                -8.450000000000001,
+                0.0,
+                -0.9750000000000001
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Hatchback_Sports_11",
+            "class": "Hatchback_Sports",
+            "position_3d": [
+                -12.35,
+                0.0,
+                17.225
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Sedan_13",
+            "class": "Sedan",
+            "position_3d": [
+                13.65,
+                0.0,
+                17.875
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Truck_14",
+            "class": "Truck",
+            "position_3d": [
+                -7.15,
+                0.0,
+                8.125000000000002
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Van_15",
+            "class": "Van",
+            "position_3d": [
+                3.25,
+                0.0,
+                -9.425
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Truck_16",
+            "class": "Truck",
+            "position_3d": [
+                3.25,
+                0.0,
+                -8.125000000000002
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Sedan_17",
+            "class": "Sedan",
+            "position_3d": [
+                16.25,
+                0.0,
+                -8.125000000000002
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Ambulance_18",
+            "class": "Ambulance",
+            "position_3d": [
+                -0.9750000000000001,
+                0.0,
+                -5.8500000000000005
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Ambulance_19",
+            "class": "Ambulance",
+            "position_3d": [
+                17.55,
+                0.0,
+                -10.075
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "SUV_20",
+            "class": "SUV",
+            "position_3d": [
+                12.35,
+                0.0,
+                0.9750000000000001
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Taxi_21",
+            "class": "Taxi",
+            "position_3d": [
+                19.825000000000003,
+                0.0,
+                -14.950000000000001
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Truck_22",
+            "class": "Truck",
+            "position_3d": [
+                -1.9500000000000002,
+                0.0,
+                -17.225
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Ambulance_23",
+            "class": "Ambulance",
+            "position_3d": [
+                13.65,
+                0.0,
+                -0.9750000000000001
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Delivery_24",
+            "class": "Delivery",
+            "position_3d": [
+                9.425,
+                0.0,
+                7.15
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Taxi_25",
+            "class": "Taxi",
+            "position_3d": [
+                -1.9500000000000002,
+                0.0,
+                8.775
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Van_28",
+            "class": "Van",
+            "position_3d": [
+                10.725000000000001,
+                0.0,
+                -5.8500000000000005
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Van_29",
+            "class": "Van",
+            "position_3d": [
+                9.425,
+                0.0,
+                12.35
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Taxi_30",
+            "class": "Taxi",
+            "position_3d": [
+                10.075,
+                0.0,
+                5.8500000000000005
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Delivery_31",
+            "class": "Delivery",
+            "position_3d": [
+                8.450000000000001,
+                0.0,
+                9.425
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Sedan_32",
+            "class": "Sedan",
+            "position_3d": [
+                10.725000000000001,
+                0.0,
+                14.950000000000001
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Delivery_33",
+            "class": "Delivery",
+            "position_3d": [
+                0.9750000000000001,
+                0.0,
+                -1.9500000000000002
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Race_Car_34",
+            "class": "Race_Car",
+            "position_3d": [
+                -16.25,
+                0.0,
+                -0.325
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "SUV_35",
+            "class": "SUV",
+            "position_3d": [
+                -9.425,
+                0.0,
+                -1.9500000000000002
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Sedan_36",
+            "class": "Sedan",
+            "position_3d": [
+                -13.65,
+                0.0,
+                -0.325
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Truck_37",
+            "class": "Truck",
+            "position_3d": [
+                -0.9750000000000001,
+                0.0,
+                1.9500000000000002
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Race_Car_38",
+            "class": "Race_Car",
+            "position_3d": [
+                -0.325,
+                0.0,
+                12.35
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Ambulance_40",
+            "class": "Ambulance",
+            "position_3d": [
+                -10.075,
+                0.0,
+                5.8500000000000005
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Race_Car_41",
+            "class": "Race_Car",
+            "position_3d": [
+                7.15,
+                0.0,
+                8.775
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Hatchback_Sports_42",
+            "class": "Hatchback_Sports",
+            "position_3d": [
+                16.25,
+                0.0,
+                -8.775
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Van_43",
+            "class": "Van",
+            "position_3d": [
+                -0.325,
+                0.0,
+                5.8500000000000005
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Sedan_46",
+            "class": "Sedan",
+            "position_3d": [
+                -11.375,
+                0.0,
+                -16.25
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Truck_47",
+            "class": "Truck",
+            "position_3d": [
+                -4.55,
+                0.0,
+                -10.075
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Race_Car_48",
+            "class": "Race_Car",
+            "position_3d": [
+                -17.55,
+                0.0,
+                -17.875
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Van_49",
+            "class": "Van",
+            "position_3d": [
+                14.950000000000001,
+                0.0,
+                -0.325
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "SUV_50",
+            "class": "SUV",
+            "position_3d": [
+                -18.85,
+                0.0,
+                8.125000000000002
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_51",
+            "class": "Truck",
+            "position_3d": [
+                -11.375,
+                0.0,
+                5.8500000000000005
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Sedan_52",
+            "class": "Sedan",
+            "position_3d": [
+                8.450000000000001,
+                0.0,
+                8.125000000000002
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Hatchback_Sports_53",
+            "class": "Hatchback_Sports",
+            "position_3d": [
+                -14.950000000000001,
+                0.0,
+                -17.875
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_54",
+            "class": "Truck",
+            "position_3d": [
+                0.9750000000000001,
+                0.0,
+                1.9500000000000002
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Delivery_56",
+            "class": "Delivery",
+            "position_3d": [
+                -0.325,
+                0.0,
+                3.25
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "SUV_58",
+            "class": "SUV",
+            "position_3d": [
+                -1.9500000000000002,
+                0.0,
+                17.225
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_59",
+            "class": "Truck",
+            "position_3d": [
+                16.25,
+                0.0,
+                8.775
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Truck_61",
+            "class": "Truck",
+            "position_3d": [
+                -4.55,
+                0.0,
+                -8.125000000000002
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Delivery_62",
+            "class": "Delivery",
+            "position_3d": [
+                19.825000000000003,
+                0.0,
+                -12.35
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Truck_63",
+            "class": "Truck",
+            "position_3d": [
+                -13.65,
+                0.0,
+                -8.775
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_65",
+            "class": "Truck",
+            "position_3d": [
+                -10.725000000000001,
+                0.0,
+                -7.15
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Truck_67",
+            "class": "Truck",
+            "position_3d": [
+                9.425,
+                0.0,
+                -5.8500000000000005
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "SUV_69",
+            "class": "SUV",
+            "position_3d": [
+                4.55,
+                0.0,
+                -0.9750000000000001
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Race_Car_70",
+            "class": "Race_Car",
+            "position_3d": [
+                16.25,
+                0.0,
+                -17.225
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Delivery_71",
+            "class": "Delivery",
+            "position_3d": [
+                -11.375,
+                0.0,
+                -11.05
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Race_Car_72",
+            "class": "Race_Car",
+            "position_3d": [
+                -11.375,
+                0.0,
+                11.05
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Delivery_73",
+            "class": "Delivery",
+            "position_3d": [
+                -12.35,
+                0.0,
+                -10.075
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_74",
+            "class": "Truck",
+            "position_3d": [
+                -0.325,
+                0.0,
+                16.25
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Delivery_75",
+            "class": "Delivery",
+            "position_3d": [
+                0.9750000000000001,
+                0.0,
+                -16.25
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Sedan_77",
+            "class": "Sedan",
+            "position_3d": [
+                -8.450000000000001,
+                0.0,
+                8.125000000000002
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Truck_78",
+            "class": "Truck",
+            "position_3d": [
+                -1.9500000000000002,
+                0.0,
+                -8.125000000000002
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Van_79",
+            "class": "Van",
+            "position_3d": [
+                11.375,
+                0.0,
+                -13.65
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Truck_80",
+            "class": "Truck",
+            "position_3d": [
+                18.85,
+                0.0,
+                0.9750000000000001
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "SUV_81",
+            "class": "SUV",
+            "position_3d": [
+                13.65,
+                0.0,
+                9.425
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "SUV_82",
+            "class": "SUV",
+            "position_3d": [
+                10.075,
+                0.0,
+                -1.9500000000000002
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Race_Car_83",
+            "class": "Race_Car",
+            "position_3d": [
+                18.85,
+                0.0,
+                -17.875
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "SUV_84",
+            "class": "SUV",
+            "position_3d": [
+                -5.8500000000000005,
+                0.0,
+                -8.775
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Hatchback_Sports_85",
+            "class": "Hatchback_Sports",
+            "position_3d": [
+                8.450000000000001,
+                0.0,
+                -10.075
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Police_Car_86",
+            "class": "Police_Car",
+            "position_3d": [
+                -19.825000000000003,
+                0.0,
+                -14.950000000000001
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Sedan_87",
+            "class": "Sedan",
+            "position_3d": [
+                -8.450000000000001,
+                0.0,
+                -10.075
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Hatchback_Sports_91",
+            "class": "Hatchback_Sports",
+            "position_3d": [
+                -11.375,
+                0.0,
+                -3.25
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Delivery_92",
+            "class": "Delivery",
+            "position_3d": [
+                12.35,
+                0.0,
+                -0.325
+            ],
+            "rotation_y": -90.0
+        },
+        {
+            "name": "Race_Car_93",
+            "class": "Race_Car",
+            "position_3d": [
+                0.325,
+                0.0,
+                -13.65
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Ambulance_94",
+            "class": "Ambulance",
+            "position_3d": [
+                -10.725000000000001,
+                0.0,
+                -11.05
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Truck_97",
+            "class": "Truck",
+            "position_3d": [
+                -9.425,
+                0.0,
+                -13.65
+            ],
+            "rotation_y": 0.0
+        },
+        {
+            "name": "Police_Car_98",
+            "class": "Police_Car",
+            "position_3d": [
+                10.725000000000001,
+                0.0,
+                7.15
+            ],
+            "rotation_y": 180.0
+        },
+        {
+            "name": "Taxi_99",
+            "class": "Taxi",
+            "position_3d": [
+                8.450000000000001,
+                0.0,
+                0.325
+            ],
+            "rotation_y": 90.0
+        },
+        {
+            "name": "Ego_Dashcam_Car",
+            "class": "Car",
+            "position_3d": [
+                -19.825000000000003,
+                0.0,
+                -11.05
+            ],
+            "rotation_y": 180.0
+        }
+    ]
+}
