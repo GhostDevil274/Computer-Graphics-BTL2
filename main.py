@@ -255,7 +255,7 @@ def main():
             mdl.bbox = compute_bbox(path) 
             building_models.append(mdl)
 
-    prop_files = ["light-curved.obj", "light-square.obj", "sign-highway.obj", "sign-highway-detailed.obj"]
+    prop_files = ["sign-highway.obj", "sign-highway-detailed.obj"]
     prop_models = [ObjModel(os.path.join("assets", "models", m)) for m in prop_files if os.path.exists(os.path.join("assets", "models", m))]
 
     base_block = [
@@ -339,7 +339,7 @@ def main():
         prop = SceneObject(random.choice(safe_props), "Street_Prop", 3, "Prop")
         prop.texture_id = building_tex 
 
-        edge_offset = TILE_SIZE * 0.85
+        edge_offset = TILE_SIZE * 1.9
         
         if rdir == 'V':
             prop.pos_x = rx + edge_offset * random.choice([1, -1])
