@@ -29,7 +29,7 @@ class SceneObject:
         # BẢNG MÀU 
         SEMANTIC_COLORS = {
             0: [0.3, 0.3, 0.3],      # Đường (Xám tối)
-            2: [0.5, 0.5, 0.5],   # Building (Xám nhạt hơn)
+            2: [0.5, 0.5, 0.5],      # Building (Xám nhạt hơn)
             3: [0.8, 0.8, 0.8],      # Prop (Xám vừa)
             1: [0.1, 0.1, 0.9],      # Police_Car 
             4: [0.8, 0.1, 0.8],      # SUV 
