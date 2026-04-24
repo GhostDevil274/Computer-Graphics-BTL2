@@ -17,17 +17,20 @@ from shapes.basic_3d import ObjModel
 from libs.generator import save_frame, get_2d_bbox
 
 class SceneObject:
+
+    _inst_count = 1
+    
     def __init__(self, shape, name, class_id=0, class_name="Background"):
         self.shape = shape
         self.name = name
         self.class_id = class_id       
         self.class_name = class_name   
         
-        # BẢNG MÀU CHUẨN KÈM ID CỦA ÔNG
+        # BẢNG MÀU 
         SEMANTIC_COLORS = {
-            0: [0.1, 0.1, 0.1],      # Đường (Xám tối)
-            2: [0.15, 0.15, 0.15],   # Building (Xám nhạt hơn)
-            3: [0.2, 0.2, 0.2],      # Prop (Xám vừa)
+            0: [0.3, 0.3, 0.3],      # Đường (Xám tối)
+            2: [0.5, 0.5, 0.5],   # Building (Xám nhạt hơn)
+            3: [0.8, 0.8, 0.8],      # Prop (Xám vừa)
             1: [0.1, 0.1, 0.9],      # Police_Car 
             4: [0.8, 0.1, 0.8],      # SUV 
             5: [0.9, 0.1, 0.1],      # Ambulance 
@@ -48,6 +51,14 @@ class SceneObject:
             20: [0.3, 0.3, 0.3],     # Skyscraper
         }
         self.mask_color = SEMANTIC_COLORS.get(self.class_id, [1.0, 1.0, 1.0])
+
+        self.inst_id = SceneObject._inst_count
+        SceneObject._inst_count += 1
+        self.instance_color = [
+            ((self.inst_id >> 16) & 0xFF) / 255.0,
+            ((self.inst_id >> 8) & 0xFF) / 255.0,
+            (self.inst_id & 0xFF) / 255.0
+        ]
 
         self.scale = 1.0
         self.rot_x, self.rot_y = 0.0, 0.0
@@ -319,12 +330,17 @@ def main():
 
     for rx, rz, rdir in road_tiles:
         if not prop_models: break
-        if random.random() > 0.20: continue 
+        if rdir == 'C': continue
+        if random.random() > 0.15: continue 
         
-        prop = SceneObject(random.choice(prop_models), "Street_Prop", 3, "Prop")
-        prop.texture_id = car_tex 
+        safe_props = [p for p in prop_models if "sign" not in getattr(p, 'filename', '')]
+        if not safe_props: safe_props = prop_models
         
-        edge_offset = TILE_SIZE * 0.65 
+        prop = SceneObject(random.choice(safe_props), "Street_Prop", 3, "Prop")
+        prop.texture_id = building_tex 
+
+        edge_offset = TILE_SIZE * 0.85
+        
         if rdir == 'V':
             prop.pos_x = rx + edge_offset * random.choice([1, -1])
             prop.pos_z = rz + random.uniform(-0.3, 0.3)
@@ -340,7 +356,6 @@ def main():
             
         scene_objects.append(prop)
 
-    # ĐÃ FIX: CHỈ CÒN 70 XE VÀ SINH VỊ TRÍ CHUẨN 2 CHIỀU!
     num_cars_to_place = 70 
     placed_cars_data = [] 
     
@@ -389,7 +404,6 @@ def main():
         car.scale = base_car_scale * random.uniform(0.95, 1.05) 
         car_w, car_h = base_w * car.scale, base_h * car.scale
         
-        # CÔNG THỨC 2 LÀN CÙNG CHIỀU CHUẨN XÁC
         offset = 0.30 * TILE_SIZE 
         direction = random.choice([1, -1]) 
         
@@ -439,7 +453,6 @@ def main():
         ego_x = (0 - offset_x) * TILE_SIZE + 0.25 * TILE_SIZE
         ego_z = (5 - offset_z) * TILE_SIZE
         ego_model = car_models[0] 
-        # Đã cập nhật lại ID Ego Car thành Sedan
         ego_car = SceneObject(ego_model, "Ego_Dashcam_Car", 10, "Sedan")
         ego_base_scale, _, _ = get_car_info(getattr(ego_model, 'filename', ''))
         ego_car.scale = ego_base_scale
@@ -521,7 +534,7 @@ def main():
         GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat)
         GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "projection"), 1, GL.GL_TRUE, p_mat)
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_depth_map"), 1 if view_mode == 1 else 0)
-        GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_mask_map"), 1 if view_mode == 2 else 0)
+        GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_mask_map"), 1 if view_mode in [2, 3] else 0)
         
         if shader == my_shader:
             lights_active = gui.lights if view_mode == 0 else [False, False, False]
@@ -543,6 +556,9 @@ def main():
             if view_mode == 2: 
                 GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 0)
                 GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "flat_color"), *obj.mask_color)
+            elif view_mode == 3:
+                GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 0)
+                GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "flat_color"), *obj.instance_color)
             else: 
                 GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "render_mode"), 4 if obj.texture_id > 0 else 3)
                 if obj.texture_id > 0 and view_mode == 0:
@@ -670,106 +686,118 @@ def main():
 
         fb_width, fb_height = glfw.get_framebuffer_size(window)
         GL.glViewport(0, 0, fb_width, fb_height)
-        
+
+        is_generating = getattr(gui, 'generate_requested', False)
+        is_showing_bbox = getattr(gui, 'show_bbox', False)
+        active_bboxes = [] 
+
+        if is_generating or is_showing_bbox:
+            GL.glDisable(GL.GL_MULTISAMPLE) 
+            
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0) # Ép màu đen tuyệt đối
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 3, my_shader) 
+            
+            inst_data = GL.glReadPixels(0, 0, fb_width, fb_height, GL.GL_RGB, GL.GL_UNSIGNED_BYTE)
+            inst_arr = np.frombuffer(inst_data, dtype=np.uint8).reshape((fb_height, fb_width, 3))
+            inst_arr = np.flipud(inst_arr)
+            GL.glEnable(GL.GL_MULTISAMPLE)
+
+            inst_arr_int = (inst_arr[:,:,0].astype(np.uint32) << 16) | (inst_arr[:,:,1].astype(np.uint32) << 8) | inst_arr[:,:,2].astype(np.uint32)
+
+            for obj in scene_objects:
+                if obj.class_name not in ["Background", "Building", "Prop", "Skyscraper"]:
+                    if abs(obj.pos_x) > 21.0 or abs(obj.pos_z) > 18.5: continue
+                    
+                    r_val = (obj.inst_id >> 16) & 0xFF
+                    g_val = (obj.inst_id >> 8) & 0xFF
+                    b_val = obj.inst_id & 0xFF
+                    target_color = (r_val << 16) | (g_val << 8) | b_val
+                    
+                    y_coords, x_coords = np.nonzero(inst_arr_int == target_color)
+
+                    if y_coords.size > 50: 
+                        y_min, x_min = y_coords.min(), x_coords.min()
+                        y_max, x_max = y_coords.max(), x_coords.max()
+                        w_box = (x_max - x_min) / fb_width
+                        h_box = (y_max - y_min) / fb_height
+                        xc = (x_min + x_max) / 2.0 / fb_width
+                        yc = (y_min + y_max) / 2.0 / fb_height
+                        
+                        if w_box > 0.005 and h_box > 0.005:
+                            active_bboxes.append({
+                                "obj": obj, "class_id": obj.class_id, "name": obj.name,
+                                "xc": xc, "yc": yc, "w": w_box, "h": h_box
+                            })
+
+        if is_generating:
+            file_id = f"frame_{int(time.time())}"
+            for d in ["dataset/images", "dataset/labels", "dataset/masks", "dataset/depth"]:
+                os.makedirs(d, exist_ok=True) 
+
+            bg = gui.bg_color if getattr(gui, 'view_mode', 0) == 0 else [0.0, 0.0, 0.0]
+            GL.glClearColor(*bg, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 0, my_shader)
+            save_frame(window, "dataset/images", f"frame_{file_id}.png", mode="RGB")
+            
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 1, my_shader)
+            save_frame(window, "dataset/depth", f"frame_{file_id}_depth.png", mode="L")
+            
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            render_scene(v_mat, p_mat, 2, my_shader)
+            save_frame(window, "dataset/masks", f"frame_{file_id}_mask.png", mode="MASK", active_bboxes=active_bboxes)
+
+            labels_txt = [f"{b['class_id']} {b['xc']:.6f} {b['yc']:.6f} {b['w']:.6f} {b['h']:.6f}" for b in active_bboxes]
+            with open(f"dataset/labels/{file_id}.txt", "w") as f:
+                f.write("\n".join(labels_txt))
+
+            metadata = {"camera": {"view_matrix": v_mat.tolist(), "projection_matrix": p_mat.tolist()}, "objects": []}
+            for b in active_bboxes:
+                o = b['obj']
+                metadata["objects"].append({"name": o.name, "class": o.class_name, "position_3d": [o.pos_x, o.pos_y, o.pos_z], "rotation_y": o.rot_y})
+            with open(f"dataset/labels/{file_id}_meta.json", "w") as f: json.dump(metadata, f, indent=4)
+
+            print(f"✅ Đã xuất xong bộ dữ liệu chuẩn: {file_id}")
+            gui.generate_requested = False
+
         bg = gui.bg_color if getattr(gui, 'view_mode', 0) == 0 else [0.0, 0.0, 0.0]
         GL.glClearColor(*bg, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
         
         my_shader.use()
-        GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat)
-        GL.glUniformMatrix4fv(GL.glGetUniformLocation(my_shader.render_idx, "projection"), 1, GL.GL_TRUE, p_mat)
-        GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "is_depth_map"), 1 if getattr(gui, 'view_mode', 0) == 1 else 0)
-        GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "bg_color"), *bg)
-        
         lights_active = gui.lights if getattr(gui, 'view_mode', 0) == 0 else [False, False, False]
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light1_on"), lights_active[0])
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light2_on"), lights_active[1])
         GL.glUniform1i(GL.glGetUniformLocation(my_shader.render_idx, "light3_on"), lights_active[2])
         GL.glUniform3f(GL.glGetUniformLocation(my_shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3])
-        
         GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE if getattr(gui, 'is_wireframe', False) else GL.GL_FILL)
 
         render_scene(v_mat, p_mat, getattr(gui, 'view_mode', 0), my_shader)
-
-        if getattr(gui, 'generate_requested', False):
-            file_id = f"frame_{int(time.time())}"
-            
-            for d in ["dataset/images", "dataset/labels", "dataset/masks", "dataset/depth"]:
-                os.makedirs(d, exist_ok=True) 
-
-            GL.glClearColor(*gui.bg_color, 1.0)
-            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-            render_scene(v_mat, p_mat, 0, my_shader)
-            save_frame(window, "dataset/images", f"frame_{file_id}.png", mode="RGB")
-
-            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
-            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-            render_scene(v_mat, p_mat, 1, my_shader)
-            save_frame(window, "dataset/depth", f"frame_{file_id}_depth.png", mode="L")
-
-            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-            render_scene(v_mat, p_mat, 2, my_shader)
-            save_frame(window, "dataset/masks", f"frame_{file_id}_mask.png", mode="MASK", scene_objects=scene_objects, v_mat=v_mat, p_mat=p_mat)
-
-            labels = []
-            for obj in scene_objects:
-                if obj.class_name not in ["Background", "Building", "Prop"]:
-                    if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: continue
-                    bbox = get_2d_bbox(obj, v_mat, p_mat, (ww, wh))
-                    if bbox: labels.append(bbox)
-
-            with open(f"dataset/labels/{file_id}.txt", "w") as f:
-                f.write("\n".join(labels))
-
-            metadata = {
-                "camera": {
-                    "view_matrix": v_mat.tolist(),
-                    "projection_matrix": p_mat.tolist()
-                },
-                "objects": []
-            }
-            for obj in scene_objects:
-                if obj.class_name not in ["Background", "Building", "Prop"]:
-                    if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: continue
-                    metadata["objects"].append({
-                        "name": obj.name,
-                        "class": obj.class_name,
-                        "position_3d": [obj.pos_x, obj.pos_y, obj.pos_z],
-                        "rotation_y": obj.rot_y
-                    })
-            
-            with open(f"dataset/labels/{file_id}_meta.json", "w") as f:
-                json.dump(metadata, f, indent=4)
-
-            print(f"✅ Đã xuất xong bộ dữ liệu chuẩn: {file_id}")
-            gui.generate_requested = False
         
         gui.render(cameras, scene_objects)
 
-        if getattr(gui, 'show_bbox', False):
+        if is_showing_bbox:
             draw_list = imgui.get_background_draw_list()
+            ww, wh = glfw.get_window_size(window)
             
-            for obj in scene_objects:
-                if obj.class_name in ["Background", "Building", "Prop"]: continue
-                if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: continue
-                bbox = get_2d_bbox(obj, v_mat, p_mat, (ww, wh))
-                
-                if bbox:
-                    _, x_c, y_c, w_b, h_b = map(float, bbox.split())
-                    
-                    x1 = (x_c - w_b / 2.0) * ww
-                    y1 = (y_c - h_b / 2.0) * wh
-                    x2 = (x_c + w_b / 2.0) * ww
-                    y2 = (y_c + h_b / 2.0) * wh
+            for b in active_bboxes:
+                x_c, y_c, w_b, h_b = b['xc'], b['yc'], b['w'], b['h']
+                x1 = (x_c - w_b / 2.0) * ww
+                y1 = (y_c - h_b / 2.0) * wh
+                x2 = (x_c + w_b / 2.0) * ww
+                y2 = (y_c + h_b / 2.0) * wh
 
-                    r, g, b = obj.mask_color
-                    box_color = imgui.get_color_u32_rgba(r, g, b, 1.0)
-                    
-                    draw_list.add_rect(x1, y1, x2, y2, box_color, thickness=2.0)
-                    
-                    bg_color = imgui.get_color_u32_rgba(0.0, 0.0, 0.0, 0.6)
-                    draw_list.add_rect_filled(x1, y1 - 18, x1 + 80, y1, bg_color) 
-                    draw_list.add_text(x1 + 4, y1 - 17, box_color, f"{obj.class_name}")
+                r, g, b_col = b['obj'].mask_color
+                box_color = imgui.get_color_u32_rgba(r, g, b_col, 1.0)
+                
+                draw_list.add_rect(x1, y1, x2, y2, box_color, thickness=2.0)
+                bg_color = imgui.get_color_u32_rgba(0.0, 0.0, 0.0, 0.6)
+                draw_list.add_rect_filled(x1, y1 - 18, x1 + 80, y1, bg_color) 
+                draw_list.add_text(x1 + 4, y1 - 17, box_color, f"{b['obj'].class_name}")
 
         imgui.render()
         impl.render(imgui.get_draw_data())
