@@ -307,7 +307,10 @@ def main():
             elif tile == '.': 
                 open_space_tiles.append((x_pos, z_pos))
 
+    
     def is_overlap(x1, z1, w1, h1, x2, z2, w2, h2):
+        # Thuật toán AABB để kiểm tra va chạm giữa hai hình chữ nhật
+        # Nếu khoảng cách giữa tâm hai hình nhỏ hơn tổng nửa chiều rộng và nửa chiều cao -> chồng lên nhau
         return (abs(x1 - x2) < (w1 + w2) / 2.0) and (abs(z1 - z2) < (h1 + h2) / 2.0)
 
     def get_car_info(filename):
@@ -618,6 +621,8 @@ def main():
             spawn_x, spawn_y, spawn_z = cam_target[0], cam_target[1], cam_target[2]
             
             best_dist, best_road = float('inf'), None
+
+            # Tìm tile đường gần nhất với vị trí spawn
             for rx, rz, rdir in road_tiles:
                 d = (rx - spawn_x)**2 + (rz - spawn_z)**2
                 if d < best_dist:
@@ -693,7 +698,8 @@ def main():
 
         if is_generating or is_showing_bbox:
             GL.glDisable(GL.GL_MULTISAMPLE) 
-            
+            # Tắt khử răng cưa để đảm bảo màu sắc chính xác khi đọc pixel ở mask instance
+
             GL.glClearColor(0.0, 0.0, 0.0, 1.0) # Ép màu đen tuyệt đối
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             render_scene(v_mat, p_mat, 3, my_shader) 
