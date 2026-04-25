@@ -4,12 +4,10 @@ from PIL import ImageDraw
 import numpy as np
 import os
 import glfw
+from libs.transform import translate, scale, rotate_x, rotate_y
 
 
 def get_2d_bbox(obj, view_matrix, projection_matrix, win_size, depth_map=None):
-    import numpy as np
-    from libs.transform import translate, scale, rotate_x, rotate_y
-
     if hasattr(obj.shape, 'bbox'):
         min_x, max_x, min_y, max_y, min_z, max_z = obj.shape.bbox
     else:
