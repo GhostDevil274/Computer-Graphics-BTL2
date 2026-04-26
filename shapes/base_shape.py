@@ -8,7 +8,6 @@ class BaseShape:
         self.indices = np.array(indices, dtype=np.uint32)
         self.colors = np.array(colors, dtype=np.float32)
         
-        # 1. TÍNH PHÁP TUYẾN ÁNH SÁNG 
         if normals is None:
             self.normals = np.zeros_like(self.vertices)
             for i in range(0, len(self.indices), 3):
@@ -24,7 +23,6 @@ class BaseShape:
         else:
             self.normals = np.array(normals, dtype=np.float32)
 
-        # 2. TỌA ĐỘ DÁN ẢNH 
         if uvs is None:
             self.uvs = np.zeros((len(self.vertices), 2), dtype=np.float32)
             for i, v in enumerate(self.vertices):
@@ -35,7 +33,6 @@ class BaseShape:
         else:
             self.uvs = np.array(uvs, dtype=np.float32)
 
-        # 3. NẠP VÀO CARD ĐỒ HỌA
         self.vao = GL.glGenVertexArrays(1)
         GL.glBindVertexArray(self.vao)
 

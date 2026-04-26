@@ -278,6 +278,7 @@ def main():
     grid_rows, grid_cols = len(CITY_LAYOUT), len(CITY_LAYOUT[0])
     offset_x = grid_cols / 2.0 - 0.5
     offset_z = grid_rows / 2.0 - 0.5
+    # Đẩy tâm của bản đồ về gốc tọa độ (0, 0) -> quản lý objects dễ
 
     open_space_tiles, road_tiles = [], []      
     
@@ -309,7 +310,7 @@ def main():
 
     
     def is_overlap(x1, z1, w1, h1, x2, z2, w2, h2):
-        # Thuật toán AABB để kiểm tra va chạm giữa hai hình chữ nhật
+        # Thuật toán AABB (Axis-Aligned Bounding Box) để kiểm tra va chạm giữa hai hình chữ nhật
         # Nếu khoảng cách giữa tâm hai hình nhỏ hơn tổng nửa chiều rộng và nửa chiều cao -> chồng lên nhau
         return (abs(x1 - x2) < (w1 + w2) / 2.0) and (abs(z1 - z2) < (h1 + h2) / 2.0)
 
@@ -323,7 +324,7 @@ def main():
             return 0.30, 0.8, 1.6 
 
     def check_car_collision(new_x, new_z, new_w, new_h, new_rot, placed_cars):
-        if new_rot in [90.0, -90.0]: new_w, new_h = new_h, new_w
+        if new_rot in [90.0, -90.0]: new_w, new_h = new_h, new_w # Đổi chiều nếu xe quay ngang
         for pc in placed_cars:
             pw, ph = pc['w'], pc['h']
             if pc['rot'] in [90.0, -90.0]: pw, ph = ph, pw
@@ -548,8 +549,10 @@ def main():
 
         for obj in scene_objects:
             if obj.class_name not in ["Background", "Building", "Prop", "Skyscraper"]:
+                # Kỹ thuật Culling, loại bỏ các objects nằm ngoài phạm vi này để tăng efficiency 
                 if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: 
                     continue
+
             m_trans = translate(obj.pos_x, obj.pos_y, obj.pos_z)
             m_rot = np.matmul(rotate_y(obj.rot_y), rotate_x(obj.rot_x))
             m_scale = scale(obj.scale, obj.scale, obj.scale)
