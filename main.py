@@ -463,7 +463,7 @@ def main():
         ego_car.texture_id = car_tex
         scene_objects.append(ego_car)
 
-    # --- KHỞI TẠO HỆ THỐNG CAMERA ---
+    # Thiết lập camera và callback chuột 
     cameras = []
     cam0 = Trackball(distance=15.0); cam0.azimuth = 0.0; cam0.elevation = 10.0
     cam1 = Trackball(distance=40.0); cam1.azimuth = 0.0; cam1.elevation = 80.0
