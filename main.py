@@ -54,6 +54,8 @@ class SceneObject:
 
         self.inst_id = SceneObject._inst_count
         SceneObject._inst_count += 1
+
+        # Dịch bit để tạo màu duy nhất cho từng object trong ảnh mask
         self.instance_color = [
             ((self.inst_id >> 16) & 0xFF) / 255.0,
             ((self.inst_id >> 8) & 0xFF) / 255.0,
@@ -81,7 +83,8 @@ class SceneObject:
         if not hasattr(self, 'wheel_radius'): self.wheel_radius = 0.3
         if not hasattr(self, 'wheel_rotation'): self.wheel_rotation = 0.0
 
-        safe_dt = min(dt, 0.033) 
+        # Tránh dt lớn -> xe đi nhanh và xuyên object khác
+        safe_dt = min(dt, 0.033) # Tương đương 30 FPS
         actual_speed = self.velocity * speed_multiplier
         
         rad = math.radians(self.rot_y)
@@ -106,8 +109,8 @@ class SceneObject:
                         dist = math.sqrt(dx**2 + dz**2)
                         
                         if 0.1 < dist < 3.5:
-                            dot = (dx * dir_x) + (dz * dir_z)
-                            if dot > 0.85 * dist: 
+                            dot = (dx * dir_x) + (dz * dir_z) 
+                            if dot > 0.85 * dist: # Tạo ra góc nhìn (-31, 31) độ để tránh collapse
                                 can_move = False
                                 break
         
@@ -119,7 +122,9 @@ class SceneObject:
         self.pos_z += dir_z * actual_speed * safe_dt
         self.wheel_rotation += (actual_speed * safe_dt / self.wheel_radius) * (180.0 / math.pi)
         
-        if self.pos_x > 40.0: self.pos_x -= 80.0
+
+        # giới hạn thành phố (-40, 40) để tele xe tránh spawn và destroy liên tục
+        if self.pos_x > 40.0: self.pos_x -= 80.0 
         elif self.pos_x < -40.0: self.pos_x += 80.0
         
         if self.pos_z > 40.0: self.pos_z -= 80.0
@@ -133,7 +138,7 @@ def load_texture(filepath):
     
     if not actual_path: return 0
     try:
-        img = Image.open(actual_path).convert("RGBA")
+        img = Image.open(actual_path).convert("RGBA") # (Red, Green, Blue, Alpha) để nạp lên OpenGL an toàn hơn, ảnh không có A auto = 255
         img_data = np.array(img, np.uint8) 
         tex_id = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, tex_id)
@@ -142,28 +147,32 @@ def load_texture(filepath):
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
         GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, img.width, img.height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, img_data)
-        GL.glGenerateMipmap(GL.GL_TEXTURE_2D)
+        GL.glGenerateMipmap(GL.GL_TEXTURE_2D) # tạo mipmap để tạo bản nhỏ hơn khi ở xa -> giảm nhòe và tăng hiệu suất
         return tex_id
     except Exception as e: 
         return 0
 
 def screen_to_world_ray(xpos, ypos, win_w, win_h, view_matrix, proj_matrix):
     ndc_x = (2.0 * xpos) / win_w - 1.0
-    ndc_y = 1.0 - (2.0 * ypos) / win_h
+    ndc_y = 1.0 - (2.0 * ypos) / win_h # đảo y (OpenGL bắt đầu từ dưới, PIL bắt đầu từ trên)
+
     ray_clip = np.array([ndc_x, ndc_y, -1.0, 1.0])
     inv_proj = np.linalg.inv(proj_matrix)
     ray_eye = np.dot(inv_proj, ray_clip)
     ray_eye = np.array([ray_eye[0], ray_eye[1], -1.0, 0.0])
+
     inv_view = np.linalg.inv(view_matrix)
     ray_wor = np.dot(inv_view, ray_eye)[:3]
     return inv_view[:3, 3], ray_wor / np.linalg.norm(ray_wor)
+           # tọa độ camera, ray direction
+
 
 def compute_bbox(filepath):
     try:
         with open(filepath, 'r') as f:
             xs, ys, zs = [], [], []
             for line in f:
-                if line.startswith('v '):
+                if line.startswith('v '): # chỉ dùng vertex, thay vì vt vn f để có bbox chính xác hơn
                     parts = line.strip().split()
                     if len(parts) >= 4:
                         xs.append(float(parts[1]))
@@ -483,17 +492,18 @@ def main():
         if imgui.get_io().want_capture_mouse: return
         if button == glfw.MOUSE_BUTTON_LEFT and action == glfw.PRESS:
             if mods & glfw.MOD_SHIFT or mods & glfw.MOD_CONTROL: return
+
             xpos, ypos = glfw.get_cursor_pos(win)
             ww, wh = glfw.get_window_size(win)
             cur_cam = cameras[gui.selected_cam_idx]
             v_mat, p_mat = cur_cam.view_matrix(), cur_cam.projection_matrix((ww, wh))
             ray_orig, ray_dir = screen_to_world_ray(xpos, ypos, ww, wh, v_mat, p_mat)
             
-            closest_dist, selected_idx = float('inf'), -1
+            closest_dist, selected_idx = float('inf'), -1 #closest_dist đảm bảo chọn xe gần nếu có 2 xe đè nhau
             for i, obj in enumerate(scene_objects):
-                t = np.dot(np.array([obj.pos_x, obj.pos_y, obj.pos_z]) - ray_orig, ray_dir)
+                t = np.dot(np.array([obj.pos_x, obj.pos_y, obj.pos_z]) - ray_orig, ray_dir) # tính khoảng cách từ mắt cam đến điểm trên ray gần nhất với tâm obj
                 if t > 0: 
-                    dist = np.linalg.norm(np.array([obj.pos_x, obj.pos_y, obj.pos_z]) - (ray_orig + t * ray_dir))
+                    dist = np.linalg.norm(np.array([obj.pos_x, obj.pos_y, obj.pos_z]) - (ray_orig + t * ray_dir)) # khoảng cách từ điểm trên ray đến tâm obj
                     if dist < 1.0 * obj.scale and t < closest_dist:
                         closest_dist, selected_idx = t, i
             if selected_idx != -1: gui.selected_scene_obj_idx = selected_idx
@@ -505,21 +515,23 @@ def main():
         on_mouse_move.old_pos = (xpos, ypos)
         if imgui.get_io().want_capture_mouse: return
         
-        is_shift = glfw.get_key(win, glfw.KEY_LEFT_SHIFT) == glfw.PRESS
-        if glfw.get_mouse_button(win, glfw.MOUSE_BUTTON_LEFT):
+        is_shift = glfw.get_key(win, glfw.KEY_LEFT_SHIFT) == glfw.PRESS # biến check để xoay/dời object
+
+        if glfw.get_mouse_button(win, glfw.MOUSE_BUTTON_LEFT): # xoay object
             if is_shift and len(scene_objects) > 0:
                 scene_objects[gui.selected_scene_obj_idx].rot_y += dx * 0.2
                 scene_objects[gui.selected_scene_obj_idx].rot_x += dy * 0.2
-            else:
+            else: # xoay camera
                 cameras[gui.selected_cam_idx].azimuth -= dx * 0.2
                 cameras[gui.selected_cam_idx].elevation = max(-89.0, min(89.0, cameras[gui.selected_cam_idx].elevation - dy * 0.2))
-        if glfw.get_mouse_button(win, glfw.MOUSE_BUTTON_RIGHT):
+
+        if glfw.get_mouse_button(win, glfw.MOUSE_BUTTON_RIGHT): # dời object
             if is_shift and len(scene_objects) > 0:
                 cam_az = np.radians(cameras[gui.selected_cam_idx].azimuth)
                 scene_objects[gui.selected_scene_obj_idx].pos_x += dx * 0.015 * np.cos(cam_az)
                 scene_objects[gui.selected_scene_obj_idx].pos_z += dx * 0.015 * np.sin(cam_az)
                 scene_objects[gui.selected_scene_obj_idx].pos_y -= dy * 0.015
-            else:
+            else: # dời camera
                 cameras[gui.selected_cam_idx].pan((xpos, ypos), (xpos - dx, ypos - dy))
                 gui.spawn_pos = list(cameras[gui.selected_cam_idx].target)
     glfw.set_cursor_pos_callback(window, on_mouse_move)
@@ -535,7 +547,7 @@ def main():
 
     def render_scene(v_mat, p_mat, view_mode, shader):
         shader.use()
-        GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat)
+        GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "view"), 1, GL.GL_TRUE, v_mat) # GL_TRUE để truyền column theo OpenGL convention thay vì row-major của numpy
         GL.glUniformMatrix4fv(GL.glGetUniformLocation(shader.render_idx, "projection"), 1, GL.GL_TRUE, p_mat)
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_depth_map"), 1 if view_mode == 1 else 0)
         GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "is_mask_map"), 1 if view_mode in [2, 3] else 0)
@@ -545,7 +557,7 @@ def main():
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light1_on"), lights_active[0])
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light2_on"), lights_active[1])
             GL.glUniform1i(GL.glGetUniformLocation(shader.render_idx, "light3_on"), lights_active[2])
-            GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3])
+            GL.glUniform3f(GL.glGetUniformLocation(shader.render_idx, "viewPos"), *np.linalg.inv(v_mat)[:3, 3]) # nghịch đảo view matrix để lấy vị trí camera trong world space
 
         for obj in scene_objects:
             if obj.class_name not in ["Background", "Building", "Prop", "Skyscraper"]:
@@ -553,6 +565,7 @@ def main():
                 if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: 
                     continue
 
+            # model = Translation * Rotation * Scale (nhân từ phải sang trái)
             m_trans = translate(obj.pos_x, obj.pos_y, obj.pos_z)
             m_rot = np.matmul(rotate_y(obj.rot_y), rotate_x(obj.rot_x))
             m_scale = scale(obj.scale, obj.scale, obj.scale)

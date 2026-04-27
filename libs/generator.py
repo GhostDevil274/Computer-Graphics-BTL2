@@ -84,7 +84,7 @@ def get_2d_bbox(obj, view_matrix, projection_matrix, win_size, depth_map=None):
 def save_frame(window, folder_path, filename, mode="RGB", active_bboxes=None):
     width, height = glfw.get_framebuffer_size(window)
     GL.glReadBuffer(GL.GL_BACK)
-    GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
+    GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1) # OpenGL đọc theo 4 byte, đặt thành 1 để tránh padding
 
     if mode in ["RGB", "MASK"]:
         data = GL.glReadPixels(0, 0, width, height, GL.GL_RGB, GL.GL_UNSIGNED_BYTE)
@@ -93,7 +93,7 @@ def save_frame(window, folder_path, filename, mode="RGB", active_bboxes=None):
         data = GL.glReadPixels(0, 0, width, height, GL.GL_RED, GL.GL_UNSIGNED_BYTE)
         image = Image.frombytes("L", (width, height), data)
     
-    image = image.transpose(Image.FLIP_TOP_BOTTOM)
+    image = image.transpose(Image.FLIP_TOP_BOTTOM) # lật ngược do tọa độ OpenGL bắt đầu từ góc dưới trái, PIL bắt đầu từ góc trên trái
 
     if mode == "MASK" and active_bboxes is not None:
         draw = ImageDraw.Draw(image)
