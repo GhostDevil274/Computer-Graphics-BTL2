@@ -583,6 +583,8 @@ def main():
                 if obj.texture_id > 0 and view_mode == 0:
                     GL.glActiveTexture(GL.GL_TEXTURE0)
                     GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
+
+            # vẽ object        
             obj.shape.draw()
 
     
