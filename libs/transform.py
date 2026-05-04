@@ -49,7 +49,7 @@ def look_at(eye, target, up):
     return res
 
 def perspective(fovy, aspect, zNear, zFar):
-    f = 1.0 / math.tan(math.radians(fovy) / 2.0)
+    f = 1.0 / math.tan(math.radians(fovy) / 2.0) # để bóp méo không gian cho giống 2D hơn
     res = np.zeros((4,4), dtype=np.float32)
     res[0,0] = f / aspect
     res[1,1] = f
@@ -98,8 +98,9 @@ class Trackball:
         az = math.radians(self.azimuth)
         el = math.radians(self.elevation)
         
+        # đổi tọa độ cầu sang descartes để tính vị trí camera
         cx = self.target[0] + self.distance * math.cos(el) * math.sin(az)
-        cy = self.target[1] + self.distance * math.sin(el)
+        cy = self.target[1] + self.distance * math.sin(el) # cạnh góc vuông là khoảng cách * sin(elevation)
         cz = self.target[2] + self.distance * math.cos(el) * math.cos(az)
         
         eye = np.array([cx, cy, cz], dtype=np.float32)

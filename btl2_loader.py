@@ -79,15 +79,12 @@ class KenneyModel:
         # 1 đỉnh có 8 số (3 pos + 3 norm + 2 tex), mỗi số float 4 bytes -> Stride = 32 bytes
         stride = 8 * 4 
         
-        # Position attribute (layout location = 0 trong main.vert)
         GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, GL.ctypes.c_void_p(0))
         GL.glEnableVertexAttribArray(0)
         
-        # Normal attribute (layout location = 1 trong main.vert)
         GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, GL.ctypes.c_void_p(3 * 4))
         GL.glEnableVertexAttribArray(1)
         
-        # TexCoord attribute (layout location = 2 trong main.vert)
         GL.glVertexAttribPointer(2, 2, GL.GL_FLOAT, GL.GL_FALSE, stride, GL.ctypes.c_void_p(6 * 4))
         GL.glEnableVertexAttribArray(2)
         

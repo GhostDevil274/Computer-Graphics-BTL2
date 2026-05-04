@@ -153,14 +153,19 @@ def load_texture(filepath):
         return 0
 
 def screen_to_world_ray(xpos, ypos, win_w, win_h, view_matrix, proj_matrix):
+    # tọa độ pixel -> tọa độ chuẩn hóa NDC (-1 đến 1)
     ndc_x = (2.0 * xpos) / win_w - 1.0
     ndc_y = 1.0 - (2.0 * ypos) / win_h # đảo y (OpenGL bắt đầu từ dưới, PIL bắt đầu từ trên)
 
+    # tạo vector ray trong không gian camera
     ray_clip = np.array([ndc_x, ndc_y, -1.0, 1.0])
+
+    # nghịch đảo ma trận projection -> eye space
     inv_proj = np.linalg.inv(proj_matrix)
     ray_eye = np.dot(inv_proj, ray_clip)
     ray_eye = np.array([ray_eye[0], ray_eye[1], -1.0, 0.0])
 
+    # nghịch đảo ma trận view -> world space
     inv_view = np.linalg.inv(view_matrix)
     ray_wor = np.dot(inv_view, ray_eye)[:3]
     return inv_view[:3, 3], ray_wor / np.linalg.norm(ray_wor)
@@ -715,8 +720,7 @@ def main():
         active_bboxes = [] 
 
         if is_generating or is_showing_bbox:
-            GL.glDisable(GL.GL_MULTISAMPLE) 
-            # Tắt khử răng cưa để đảm bảo màu sắc chính xác khi đọc pixel ở mask instance
+            GL.glDisable(GL.GL_MULTISAMPLE) # Tắt khử răng cưa để đảm bảo màu sắc chính xác khi đọc pixel ở mask instance
 
             GL.glClearColor(0.0, 0.0, 0.0, 1.0) # Ép màu đen tuyệt đối
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
