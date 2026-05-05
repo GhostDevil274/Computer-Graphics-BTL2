@@ -82,51 +82,97 @@ class SceneObject:
         if not hasattr(self, 'velocity'): self.velocity = 3.0
         if not hasattr(self, 'wheel_radius'): self.wheel_radius = 0.3
         if not hasattr(self, 'wheel_rotation'): self.wheel_rotation = 0.0
+        
+        if not hasattr(self, 'target_rot_y'): self.target_rot_y = self.rot_y
+        if not hasattr(self, 'is_turning'): self.is_turning = False
+        if not hasattr(self, 'last_crossroad'): self.last_crossroad = None
 
-        # Tránh dt lớn -> xe đi nhanh và xuyên object khác
-        safe_dt = min(dt, 0.033) # Tương đương 30 FPS
+        safe_dt = min(dt, 0.033) 
         actual_speed = self.velocity * speed_multiplier
         
+        TILE_SIZE = 1.3
+        HALF_TILE = TILE_SIZE / 2.0
+        LANE_OFFSET = 0.30 * TILE_SIZE 
+        
+        if not self.is_turning and road_tiles is not None:
+            for rx, rz, rdir in road_tiles:
+                if rdir == 'C': 
+                    dx = abs(self.pos_x - rx)
+                    dz = abs(self.pos_z - rz)
+                    
+                    if dx < 0.45 and dz < 0.45: 
+                        if self.last_crossroad != (rx, rz): # lưu lại toạ độ vừa rẽ tránh quay vòng
+                            self.last_crossroad = (rx, rz)
+                            
+                            choice = random.random() # random hướng đi tiếp theo
+                            if choice < 0.25:   
+                                self.target_rot_y -= 90.0 # Rẽ phải
+                                self.is_turning = True
+                            elif choice < 0.5: 
+                                self.target_rot_y += 90.0 # Rẽ trái
+                                self.is_turning = True
+                            break 
+
+        if self.is_turning:
+            diff = (self.target_rot_y - self.rot_y + 180) % 360 - 180
+            # góc cua tương quan với tốc độ 
+            turn_speed = actual_speed * 50.0 
+            
+            if abs(diff) < turn_speed * safe_dt:
+                self.rot_y = self.target_rot_y 
+                self.is_turning = False
+            else:
+                self.rot_y += math.copysign(turn_speed * safe_dt, diff)
+        
+        # vector hướng đi hiện tại
         rad = math.radians(self.rot_y)
-        dir_x = round(math.sin(rad)) 
-        dir_z = round(math.cos(rad))
+        dir_x = math.sin(rad)  
+        dir_z = math.cos(rad)
+
+        if not self.is_turning and actual_speed > 0:
+            if abs(dir_z) > 0.9: # đi dọc
+                nearest_rx = round((self.pos_x - HALF_TILE) / TILE_SIZE) * TILE_SIZE + HALF_TILE
+                ideal_x = nearest_rx - LANE_OFFSET if dir_z > 0 else nearest_rx + LANE_OFFSET
+                self.pos_x += (ideal_x - self.pos_x) * 5.0 * safe_dt
+                
+            elif abs(dir_x) > 0.9: # đi ngang
+                nearest_rz = round((self.pos_z - HALF_TILE) / TILE_SIZE) * TILE_SIZE + HALF_TILE
+                ideal_z = nearest_rz + LANE_OFFSET if dir_x > 0 else nearest_rz - LANE_OFFSET
+                self.pos_z += (ideal_z - self.pos_z) * 5.0 * safe_dt
 
         can_move = True
         if all_objs is not None:
             for other in all_objs:
-                if other is self or other.class_name in ["Background", "Building", "Prop"]: 
+                if other is self or other.class_name in ["Background", "Building", "Prop", "Skyscraper"]: 
                     continue
                 if hasattr(other, 'pos_x'):
-                    is_same_lane = False
-                    if abs(dir_x) == 1:
-                        if abs(other.pos_z - self.pos_z) < 0.5: is_same_lane = True
-                    else: 
-                        if abs(other.pos_x - self.pos_x) < 0.5: is_same_lane = True
+                    dx_other = other.pos_x - self.pos_x
+                    dz_other = other.pos_z - self.pos_z
+                    dist_sq = dx_other**2 + dz_other**2
+                    
+                    if 0.01 < dist_sq < 12.0:
+                        forward_dist = dx_other * dir_x + dz_other * dir_z
+                        side_dist = dx_other * (-dir_z) + dz_other * dir_x
                         
-                    if is_same_lane:
-                        dx = other.pos_x - self.pos_x
-                        dz = other.pos_z - self.pos_z
-                        dist = math.sqrt(dx**2 + dz**2)
+                        # tránh ùn tắc
+                        radar_range = 0.0 if self.is_turning else 2.5
                         
-                        if 0.1 < dist < 3.5:
-                            dot = (dx * dir_x) + (dz * dir_z) 
-                            if dot > 0.85 * dist: # Tạo ra góc nhìn (-31, 31) độ để tránh collapse
-                                can_move = False
-                                break
+                        # phanh khi có xe ở trước, nếu rẽ cần tránh collapse với xe bên cạnh
+                        if 0.1 < forward_dist < radar_range and abs(side_dist) < 0.5:
+                            can_move = False
+                            break
         
         if not can_move:
             actual_speed = 0.0 
 
-
         self.pos_x += dir_x * actual_speed * safe_dt
         self.pos_z += dir_z * actual_speed * safe_dt
-        self.wheel_rotation += (actual_speed * safe_dt / self.wheel_radius) * (180.0 / math.pi)
         
+        actual_radius = self.wheel_radius * self.scale
+        self.wheel_rotation = (self.wheel_rotation - (actual_speed * safe_dt / actual_radius) * (180.0 / math.pi)) % 360.0
 
-        # giới hạn thành phố (-40, 40) để tele xe tránh spawn và destroy liên tục
         if self.pos_x > 40.0: self.pos_x -= 80.0 
         elif self.pos_x < -40.0: self.pos_x += 80.0
-        
         if self.pos_z > 40.0: self.pos_z -= 80.0
         elif self.pos_z < -40.0: self.pos_z += 80.0
 
@@ -153,19 +199,14 @@ def load_texture(filepath):
         return 0
 
 def screen_to_world_ray(xpos, ypos, win_w, win_h, view_matrix, proj_matrix):
-    # tọa độ pixel -> tọa độ chuẩn hóa NDC (-1 đến 1)
     ndc_x = (2.0 * xpos) / win_w - 1.0
     ndc_y = 1.0 - (2.0 * ypos) / win_h # đảo y (OpenGL bắt đầu từ dưới, PIL bắt đầu từ trên)
 
-    # tạo vector ray trong không gian camera
     ray_clip = np.array([ndc_x, ndc_y, -1.0, 1.0])
-
-    # nghịch đảo ma trận projection -> eye space
     inv_proj = np.linalg.inv(proj_matrix)
     ray_eye = np.dot(inv_proj, ray_clip)
     ray_eye = np.array([ray_eye[0], ray_eye[1], -1.0, 0.0])
 
-    # nghịch đảo ma trận view -> world space
     inv_view = np.linalg.inv(view_matrix)
     ray_wor = np.dot(inv_view, ray_eye)[:3]
     return inv_view[:3, 3], ray_wor / np.linalg.norm(ray_wor)
@@ -374,7 +415,7 @@ def main():
             
         scene_objects.append(prop)
 
-    num_cars_to_place = 70 
+    num_cars_to_place = 69  
     placed_cars_data = [] 
     
     for i in range(num_cars_to_place):
@@ -566,7 +607,7 @@ def main():
 
         for obj in scene_objects:
             if obj.class_name not in ["Background", "Building", "Prop", "Skyscraper"]:
-                # Kỹ thuật Culling, loại bỏ các objects nằm ngoài phạm vi này để tăng efficiency 
+                # Culling, loại bỏ các objects nằm ngoài phạm vi này để tăng efficiency 
                 if abs(obj.pos_x) > 22.0 or abs(obj.pos_z) > 19.5: 
                     continue
 
@@ -588,8 +629,7 @@ def main():
                 if obj.texture_id > 0 and view_mode == 0:
                     GL.glActiveTexture(GL.GL_TEXTURE0)
                     GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
-
-            # vẽ object        
+                    
             obj.shape.draw()
 
     
@@ -603,7 +643,7 @@ def main():
         glfw.poll_events()
         impl.process_inputs()
 
-        speed_mult = getattr(gui, 'car_speed', 1.0)
+        speed_mult = getattr(gui, 'car_speed', 0.75)
         for obj in scene_objects:
             if hasattr(obj, 'update_physics'):
                 obj.update_physics(dt, speed_mult, scene_objects, road_tiles)
@@ -720,9 +760,10 @@ def main():
         active_bboxes = [] 
 
         if is_generating or is_showing_bbox:
-            GL.glDisable(GL.GL_MULTISAMPLE) # Tắt khử răng cưa để đảm bảo màu sắc chính xác khi đọc pixel ở mask instance
+            GL.glDisable(GL.GL_MULTISAMPLE) 
+            # tắt khử răng cưa để giữ đúng màu khi đọc pixel ở mask instance
 
-            GL.glClearColor(0.0, 0.0, 0.0, 1.0) # Ép màu đen tuyệt đối
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
             render_scene(v_mat, p_mat, 3, my_shader) 
             
