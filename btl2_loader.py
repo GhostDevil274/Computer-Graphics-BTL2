@@ -60,10 +60,10 @@ class KenneyModel:
                             self.vertex_count += 1
                             
             self.mesh_data = np.array(final_data, dtype=np.float32)
-            print(f"[OK] Đã load thành công: {filepath} ({self.vertex_count // 3} tam giác)")
+            print(f"Đã load thành công: {filepath} ({self.vertex_count // 3} tam giác)")
             
         except Exception as e:
-            print(f"[LỖI] Không thể đọc file {filepath}: {e}")
+            print(f"Không thể đọc file {filepath}: {e}")
             self.mesh_data = np.array([], dtype=np.float32)
 
     def _setup_gl(self):

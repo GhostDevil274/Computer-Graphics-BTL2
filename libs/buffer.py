@@ -10,10 +10,9 @@ class VAO:
         self.ebo = None
 
     def add_vbo(self, location, data, ncomponents=3):
-        """ 
-        Đóng gói Dữ liệu (Tọa độ, Màu sắc, Pháp tuyến) vào hộp VBO 
-        location: 0 (Position), 1 (Color), 2 (Normal)
-        """
+        # Đóng gói Dữ liệu (Tọa độ, Màu sắc, Pháp tuyến) vào hộp VBO 
+        # location: 0 (Position), 1 (Color), 2 (Normal)
+
         GL.glBindVertexArray(self.vao)
         
         vbo = GL.glGenBuffers(1)
@@ -26,10 +25,10 @@ class VAO:
         GL.glEnableVertexAttribArray(location)
         
         self.vbos.append(vbo)
-        GL.glBindVertexArray(0) # Đóng thùng lại
+        GL.glBindVertexArray(0) # đóng thùng
 
     def add_ebo(self, indices):
-        """ Đóng gói Bản đồ nối điểm (Indices) vào hộp EBO """
+        # đóng gói mảng chỉ số (index) vào hộp EBO để GPU biết thứ tự vẽ
         GL.glBindVertexArray(self.vao)
         
         self.ebo = GL.glGenBuffers(1)
@@ -39,5 +38,4 @@ class VAO:
         GL.glBindVertexArray(0)
 
     def activate(self):
-        """ Mở thùng hàng ra chuẩn bị vẽ """
         GL.glBindVertexArray(self.vao)

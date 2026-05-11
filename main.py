@@ -82,99 +82,120 @@ class SceneObject:
         if not hasattr(self, 'velocity'): self.velocity = 3.0
         if not hasattr(self, 'wheel_radius'): self.wheel_radius = 0.3
         if not hasattr(self, 'wheel_rotation'): self.wheel_rotation = 0.0
-        
+        if not hasattr(self, 'ai_state'): self.ai_state = "STRAIGHT" 
         if not hasattr(self, 'target_rot_y'): self.target_rot_y = self.rot_y
-        if not hasattr(self, 'is_turning'): self.is_turning = False
         if not hasattr(self, 'last_crossroad'): self.last_crossroad = None
+        if not hasattr(self, 'turn_angle'): self.turn_angle = 0.0
+        if not hasattr(self, 'turn_cooldown'): self.turn_cooldown = 0.0
 
         safe_dt = min(dt, 0.033) 
         actual_speed = self.velocity * speed_multiplier
-        
+        if self.turn_cooldown > 0: self.turn_cooldown -= safe_dt
+
         TILE_SIZE = 1.3
-        HALF_TILE = TILE_SIZE / 2.0
-        LANE_OFFSET = 0.30 * TILE_SIZE 
-        
-        if not self.is_turning and road_tiles is not None:
-            for rx, rz, rdir in road_tiles:
-                if rdir == 'C': 
-                    dx = abs(self.pos_x - rx)
-                    dz = abs(self.pos_z - rz)
-                    
-                    if dx < 0.45 and dz < 0.45: 
-                        if self.last_crossroad != (rx, rz): # lưu lại toạ độ vừa rẽ tránh quay vòng
-                            self.last_crossroad = (rx, rz)
-                            
-                            choice = random.random() # random hướng đi tiếp theo
-                            if choice < 0.25:   
-                                self.target_rot_y -= 90.0 # Rẽ phải
-                                self.is_turning = True
-                            elif choice < 0.5: 
-                                self.target_rot_y += 90.0 # Rẽ trái
-                                self.is_turning = True
-                            break 
+        LANE_OFFSET = 0.39 
 
-        if self.is_turning:
-            diff = (self.target_rot_y - self.rot_y + 180) % 360 - 180
-            # góc cua tương quan với tốc độ 
-            turn_speed = actual_speed * 50.0 
-            
-            if abs(diff) < turn_speed * safe_dt:
-                self.rot_y = self.target_rot_y 
-                self.is_turning = False
-            else:
-                self.rot_y += math.copysign(turn_speed * safe_dt, diff)
-        
-        # vector hướng đi hiện tại
         rad = math.radians(self.rot_y)
-        dir_x = math.sin(rad)  
-        dir_z = math.cos(rad)
+        dir_x, dir_z = math.sin(rad), math.cos(rad)
 
-        if not self.is_turning and actual_speed > 0:
-            if abs(dir_z) > 0.9: # đi dọc
-                nearest_rx = round((self.pos_x - HALF_TILE) / TILE_SIZE) * TILE_SIZE + HALF_TILE
-                ideal_x = nearest_rx - LANE_OFFSET if dir_z > 0 else nearest_rx + LANE_OFFSET
-                self.pos_x += (ideal_x - self.pos_x) * 5.0 * safe_dt
-                
-            elif abs(dir_x) > 0.9: # đi ngang
-                nearest_rz = round((self.pos_z - HALF_TILE) / TILE_SIZE) * TILE_SIZE + HALF_TILE
-                ideal_z = nearest_rz + LANE_OFFSET if dir_x > 0 else nearest_rz - LANE_OFFSET
-                self.pos_z += (ideal_z - self.pos_z) * 5.0 * safe_dt
+        in_intersection = False
+        dist_to_center = 999.0
+        if road_tiles is not None:
+            for rx, rz, rdir in road_tiles:
+                if rdir == 'C':
+                    dx, dz = abs(self.pos_x - rx), abs(self.pos_z - rz)
+                    if dx < 0.9 and dz < 0.9:
+                        in_intersection = True
+                        dist_to_center = (rx - self.pos_x) * dir_x + (rz - self.pos_z) * dir_z
+                        
+                        if dx < 0.65 and dz < 0.65 and self.ai_state == "STRAIGHT" and self.turn_cooldown <= 0:
+                            if self.last_crossroad != (rx, rz):
+                                self.last_crossroad = (rx, rz)
+                                choices = [0.0, 90.0, -90.0]
+                                valid_turns = []
+                                for angle in choices:
+                                    test_rad = math.radians(self.rot_y + angle)
+                                    nx = rx + round(math.sin(test_rad)) * TILE_SIZE
+                                    nz = rz + round(math.cos(test_rad)) * TILE_SIZE
+                                    for tx, tz, _ in road_tiles:
+                                        if abs(tx - nx) < 0.1 and abs(tz - nz) < 0.1:
+                                            valid_turns.append(angle)
+                                            break
+                                if valid_turns:
+                                    self.turn_angle = random.choice(valid_turns)
+                                    if self.turn_angle != 0.0:
+                                        self.ai_state = "WAIT_TURN"
+                                        self.target_rot_y = self.rot_y + self.turn_angle
+                        break
+
+        if in_intersection or self.ai_state != "STRAIGHT":
+            actual_speed *= 0.45 
 
         can_move = True
         if all_objs is not None:
             for other in all_objs:
-                if other is self or other.class_name in ["Background", "Building", "Prop", "Skyscraper"]: 
-                    continue
-                if hasattr(other, 'pos_x'):
-                    dx_other = other.pos_x - self.pos_x
-                    dz_other = other.pos_z - self.pos_z
-                    dist_sq = dx_other**2 + dz_other**2
+                if other is self or other.class_name in ["Background", "Building", "Prop", "Skyscraper"]: continue
+                
+                dx_o, dz_o = other.pos_x - self.pos_x, other.pos_z - self.pos_z
+                dist_sq = dx_o**2 + dz_o**2
+                
+                if 0.01 < dist_sq < 9.0: 
+                    f_dist = dx_o * dir_x + dz_o * dir_z 
+                    s_dist = dx_o * (-dir_z) + dz_o * dir_x
                     
-                    if 0.01 < dist_sq < 12.0:
-                        forward_dist = dx_other * dir_x + dz_other * dir_z
-                        side_dist = dx_other * (-dir_z) + dz_other * dir_x
+                    check_w = 0.7 if (in_intersection or self.ai_state != "STRAIGHT") else 0.5
+                    check_l = 1.3 if (in_intersection or self.ai_state != "STRAIGHT") else 2.5
+                    
+                    if 0.1 < f_dist < check_l and abs(s_dist) < check_w:
+                        other_state = getattr(other, 'ai_state', "STRAIGHT")
                         
-                        # tránh ùn tắc
-                        radar_range = 0.0 if self.is_turning else 2.5
-                        
-                        # phanh khi có xe ở trước, nếu rẽ cần tránh collapse với xe bên cạnh
-                        if 0.1 < forward_dist < radar_range and abs(side_dist) < 0.5:
-                            can_move = False
-                            break
+                        if self.ai_state == "STRAIGHT" and other_state != "STRAIGHT":
+                            can_move = False; break
+                        if (self.ai_state == other_state) or (self.ai_state != "STRAIGHT" and other_state != "STRAIGHT"):
+                            if id(self) > id(other):
+                                can_move = False; break
         
-        if not can_move:
-            actual_speed = 0.0 
+        if not can_move: actual_speed = 0.0
+
+        if can_move: # Chỉ xoay vô lăng khi xe có chạy (Chống xoay tại chỗ)
+            if self.ai_state == "WAIT_TURN":
+                if dist_to_center <= 0.65: 
+                    self.ai_state = "TURNING"
+
+            if self.ai_state == "TURNING":
+                radius = 0.26 if self.turn_angle == -90.0 else 1.04
+                turn_speed = math.degrees(actual_speed / radius) if actual_speed > 0 else 0
+                
+                diff = (self.target_rot_y - self.rot_y + 180) % 360 - 180
+                if abs(diff) < turn_speed * safe_dt:
+                    self.rot_y = self.target_rot_y
+                    self.ai_state = "STRAIGHT"
+                    self.turn_cooldown = 1.5 
+                else:
+                    self.rot_y += math.copysign(turn_speed * safe_dt, diff)
+                
+                rad = math.radians(self.rot_y)
+                dir_x, dir_z = math.sin(rad), math.cos(rad)
+
+        if self.ai_state == "STRAIGHT" and actual_speed > 0:
+            if abs(dir_z) > 0.9: 
+                nearest_rx = round((self.pos_x - 0.65) / 1.3) * 1.3 + 0.65
+                ideal_x = nearest_rx - LANE_OFFSET if dir_z > 0 else nearest_rx + LANE_OFFSET
+                self.pos_x += (ideal_x - self.pos_x) * 4.0 * safe_dt
+            elif abs(dir_x) > 0.9: 
+                nearest_rz = round((self.pos_z - 0.65) / 1.3) * 1.3 + 0.65
+                ideal_z = nearest_rz + LANE_OFFSET if dir_x > 0 else nearest_rz - LANE_OFFSET
+                self.pos_z += (ideal_z - self.pos_z) * 4.0 * safe_dt
 
         self.pos_x += dir_x * actual_speed * safe_dt
         self.pos_z += dir_z * actual_speed * safe_dt
-        
-        actual_radius = self.wheel_radius * self.scale
-        self.wheel_rotation = (self.wheel_rotation - (actual_speed * safe_dt / actual_radius) * (180.0 / math.pi)) % 360.0
 
-        if self.pos_x > 40.0: self.pos_x -= 80.0 
-        elif self.pos_x < -40.0: self.pos_x += 80.0
-        if self.pos_z > 40.0: self.pos_z -= 80.0
-        elif self.pos_z < -40.0: self.pos_z += 80.0
+        # Vòng lặp bản đồ
+        MAP_BOUNDARY = 39.0 
+        if self.pos_x > MAP_BOUNDARY: self.pos_x -= MAP_BOUNDARY * 2
+        elif self.pos_x < -MAP_BOUNDARY: self.pos_x += MAP_BOUNDARY * 2
+        if self.pos_z > MAP_BOUNDARY: self.pos_z -= MAP_BOUNDARY * 2
+        elif self.pos_z < -MAP_BOUNDARY: self.pos_z += MAP_BOUNDARY * 2
 
 
 def load_texture(filepath):
@@ -218,7 +239,7 @@ def compute_bbox(filepath):
         with open(filepath, 'r') as f:
             xs, ys, zs = [], [], []
             for line in f:
-                if line.startswith('v '): # chỉ dùng vertex, thay vì vt vn f để có bbox chính xác hơn
+                if line.startswith('v '): # chỉ dùng vertex, thay vì vt (texture) hoặc vn (normal) hoặc f (face) để vẽ bbox đúng hơn
                     parts = line.strip().split()
                     if len(parts) >= 4:
                         xs.append(float(parts[1]))
@@ -333,7 +354,7 @@ def main():
     grid_rows, grid_cols = len(CITY_LAYOUT), len(CITY_LAYOUT[0])
     offset_x = grid_cols / 2.0 - 0.5
     offset_z = grid_rows / 2.0 - 0.5
-    # Đẩy tâm của bản đồ về gốc tọa độ (0, 0) -> quản lý objects dễ
+    # Đẩy tâm của bản đồ về gốc tọa độ (0, 0) -> quản lý objects dễ hơn
 
     open_space_tiles, road_tiles = [], []      
     
@@ -415,7 +436,7 @@ def main():
             
         scene_objects.append(prop)
 
-    num_cars_to_place = 69  
+    num_cars_to_place = 50  
     placed_cars_data = [] 
     
     for i in range(num_cars_to_place):
@@ -545,7 +566,7 @@ def main():
             v_mat, p_mat = cur_cam.view_matrix(), cur_cam.projection_matrix((ww, wh))
             ray_orig, ray_dir = screen_to_world_ray(xpos, ypos, ww, wh, v_mat, p_mat)
             
-            closest_dist, selected_idx = float('inf'), -1 #closest_dist đảm bảo chọn xe gần nếu có 2 xe đè nhau
+            closest_dist, selected_idx = float('inf'), -1 # closest_dist đảm bảo chọn xe gần nếu có 2 xe đè nhau
             for i, obj in enumerate(scene_objects):
                 t = np.dot(np.array([obj.pos_x, obj.pos_y, obj.pos_z]) - ray_orig, ray_dir) # tính khoảng cách từ mắt cam đến điểm trên ray gần nhất với tâm obj
                 if t > 0: 
@@ -630,6 +651,7 @@ def main():
                     GL.glActiveTexture(GL.GL_TEXTURE0)
                     GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
                     
+            # vẽ object này, shader tự động dùng texture và render_mode phù hợp, hoặc dùng màu mask nếu đang vẽ mask
             obj.shape.draw()
 
     
@@ -830,7 +852,7 @@ def main():
                 metadata["objects"].append({"name": o.name, "class": o.class_name, "position_3d": [o.pos_x, o.pos_y, o.pos_z], "rotation_y": o.rot_y})
             with open(f"dataset/labels/{file_id}_meta.json", "w") as f: json.dump(metadata, f, indent=4)
 
-            print(f"✅ Đã xuất xong bộ dữ liệu chuẩn: {file_id}")
+            print(f"✅ Đã xuất xong dữ liệu: {file_id}")
             gui.generate_requested = False
 
         bg = gui.bg_color if getattr(gui, 'view_mode', 0) == 0 else [0.0, 0.0, 0.0]
